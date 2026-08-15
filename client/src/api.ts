@@ -24,7 +24,19 @@ export async function checkHealth(): Promise<void> {
   }
 }
 
-// This function will be completed in Issue 4.
 export async function checkSystem(): Promise<SystemStatus> {
-  throw new Error("checkSystem not implemented yet");
+  await checkHealth();
+
+  const response = await fetch(`${API_URL}/api/categories`);
+
+  if (!response.ok) {
+    throw new Error("Unable to load request categories");
+  }
+
+  const categories: Category[] = await response.json();
+
+  return {
+    online: true,
+    categories,
+  };
 }
