@@ -1,16 +1,20 @@
 import { useState } from "react";
-import { checkHealth } from "./api.js";
+import { checkSystem, type Category } from "./api.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
+  const [categories, setCategories] = useState<Category[]>([]);
 
   async function handleCheck() {
     setState("loading");
+    setCategories([]);
 
     try {
-      await checkHealth();
+      const result = await checkSystem();
+
+      setCategories(result.categories);
       setState("success");
     } catch {
       setState("error");
@@ -36,15 +40,28 @@ export default function App() {
       )}
 
       {state === "success" && (
-        <p className="mt-3">
-          System Status: <strong className="text-success">Online</strong>
-        </p>
+        <div className="mt-3">
+          <p>
+            System Status:{" "}
+            <strong className="text-success">Online</strong>
+          </p>
+
+          <h2 className="h5">Supported Request Categories:</h2>
+
+          <ol>
+            {categories.map((category) => (
+              <li key={category.id}>{category.name}</li>
+            ))}
+          </ol>
+        </div>
       )}
 
       {state === "error" && (
         <div className="mt-3 text-danger">
           <strong>System Status: Offline</strong>
-          <p className="mb-0">Unable to connect to TokTickIT API.</p>
+          <p className="mb-0">
+            Unable to connect to TokTickIT API.
+          </p>
         </div>
       )}
     </div>
