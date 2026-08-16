@@ -1,7 +1,8 @@
-# TokTickIT 
 # TokTickIT
 
-CPE334 Lab 1 - TokTickIT Full-Stack Hello World Starter.
+TokTickIT is a simple IT service desk application developed for CPE334 Lab 1.
+
+The application can check the system status and display the supported IT request categories from the backend API.
 
 ## Technology Stack
 
@@ -63,7 +64,33 @@ Edit `server/.env` and replace `YOUR_LOCAL_POSTGRES_PASSWORD` with your local da
 
 Do not commit the `.env` file.
 
+## Database Setup
+
+After PostgreSQL is running and `server/.env` has been configured, run the Prisma migration:
+
+```powershell
+cd server
+npx prisma migrate dev
+```
+
+Seed the database with the IT request categories:
+
+```powershell
+npx prisma db seed
+```
+
+The seeded categories are:
+
+- Account and Access
+- Hardware
+- Software
+- Network
+
+The seed uses Prisma `upsert`, so it can be run more than once without creating duplicate categories.
+
 ## Run the Application
+
+### Backend
 
 Start the backend in one terminal:
 
@@ -72,7 +99,13 @@ cd server
 npm run dev
 ```
 
-The API runs at `http://localhost:3000`.
+The API runs at:
+
+```text
+http://localhost:3000
+```
+
+### Frontend
 
 Start the frontend in another terminal:
 
@@ -81,22 +114,75 @@ cd client
 npm run dev
 ```
 
-Open the URL shown by Vite, usually `http://localhost:5173`.
+Open the URL shown by Vite, usually:
+
+```text
+http://localhost:5173
+```
+
+Click **Check System** to check the backend status and display the available IT request categories.
+
+## API Endpoints
+
+### Health Check
+
+```text
+GET /api/health
+```
+
+The endpoint returns the TokTickIT API health status.
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "service": "TokTickIT API"
+}
+```
+
+### Categories
+
+```text
+GET /api/categories
+```
+
+The endpoint reads the categories from PostgreSQL and returns them in ID order.
+
+The supported categories are:
+
+- Account and Access
+- Hardware
+- Software
+- Network
 
 ## Run Tests
 
-Run backend tests:
+### Backend Tests
+
+Run:
 
 ```powershell
 cd server
 npm test
 ```
 
-Run frontend tests:
+The backend tests cover:
+
+- `GET /api/health`
+- `GET /api/categories`
+
+### Frontend Tests
+
+Run:
 
 ```powershell
 cd client
 npm test
 ```
 
-Additional API, database, and UI behavior is implemented in later Lab 1 issues.
+The frontend tests cover:
+
+- TokTickIT heading
+- Online status and category list
+- Offline/error state when the API is unavailable
