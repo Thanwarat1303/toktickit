@@ -8,24 +8,29 @@ The design should use a green IT service desk theme with clear forms, readable t
 
 ## 2. Visual Style
 
-Suggested colors:
+Lab 2 uses the required Zen Green Theme.
 
-- Primary green: `#0F6B50`
-- Action green: `#168A61`
-- Light background: `#F6FAF8`
-- Main text: `#15231E`
-- Error red: `#B42318`
-- Warning amber: `#B54708`
+Color tokens:
 
-General style:
+- Primary green: `#006B3C` for the application header, primary actions, and strong emphasis.
+- Secondary green: `#0B7A46` for active navigation, focus accents, links, and hover states.
+- Pale green: `#EAF6EF` for selected states, success messages, and subtle section emphasis.
+- Page background: `#F5F7F6` or a similarly quiet near-white.
+- Surface and cards: white with a subtle border and restrained shadow.
+- Main text: dark charcoal-green, not pure black.
+- Editable fields: white background with a clear neutral border.
+- Read-only fields: soft gray-green or warm ivory shading that is clearly different from editable fields.
+- Error state: dark red text and border, with the message directly below the related field.
+- Warning state: amber may be used only for warnings, not as ordinary decoration.
+- Success state: green confirmation with readable text and a non-color indicator where possible.
+
+General component rules:
 
 - Use Bootstrap components where appropriate.
-- Use cards with rounded corners and light shadows.
-- Keep generous spacing between form fields and sections.
-- Use clear labels instead of relying only on placeholders.
-- Show validation messages directly below the related field.
+- Use consistent spacing, labels above controls, and clear button text.
+- Required fields show a red asterisk and a validation message near the field.
 - Use responsive layouts that become one column on small screens.
-
+- Keep visible keyboard focus indicators and clear disabled or busy button states.
 ## 3. Shared Layout
 
 Every page should include:
