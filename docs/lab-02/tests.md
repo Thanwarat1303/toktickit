@@ -31,15 +31,16 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | RESPONSIVE-01 | Responsive | AC-09 | Responsive layouts | Checks desktop, tablet, and mobile screenshots for clipping or overflow | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-01 | End-to-end | AC-02, AC-05, AC-06 | Requester ticket flow | Requester A creates and finds a ticket; Requester B cannot access it | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-02 | End-to-end | AC-07, AC-08 | Attachment lifecycle | Owner uploads and soft-removes an attachment; removed file cannot download | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| DB-01 | Database Integration | Data Changes, AC-01, AC-04 | Lab 2 schema and idempotent seed data | Required categories, seven related systems, four active requesters, and one inactive requester exist without duplicates | `server/tests/lab-02/data-model.test.ts` | Passed |
 
 ## 3. Acceptance-Criterion Traceability
 
 | Acceptance Criterion | Planned Tests | Evidence Required |
 | --- | --- | --- |
-| AC-01 — Development Requester Selection | API-01, UI-01 | API result and requester selector screenshot |
+| AC-01 — Development Requester Selection | DB-01, API-01, UI-01 | Seed-data test, API result, and requester selector screenshot |
 | AC-02 — Create Valid Ticket | UNIT-01, API-02, E2E-01 | Passing test output and created ticket screenshot |
 | AC-03 — Ticket Validation | API-03, UI-02 | Passing tests and validation-message screenshot |
-| AC-04 — Active Reference Validation | API-04 | Passing API test output |
+| AC-04 — Active Reference Validation | DB-01, API-04 | Seed-data test and passing API test output |
 | AC-05 — Requester-Owned Ticket List | API-05, UI-03, E2E-01 | My Tickets screenshot with search, filters, sorting, and pagination |
 | AC-06 — Ownership Protection | API-06, E2E-01 | Passing API test and cross-requester access evidence |
 | AC-07 — Upload Attachment | API-07, E2E-02 | Passing test and uploaded attachment screenshot |
