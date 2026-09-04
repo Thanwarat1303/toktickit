@@ -60,6 +60,20 @@ AI suggested a consistent API structure and safe error responses.
 
 I decided that the selected development requester ID will be sent as `X-Requester-Id` during local testing. I will verify this design against the provided starter code and automated tests before implementing the backend.
 
+## Record 4 — Development Requester Selection
+
+### Prompt
+
+> Help me implement Issue #13 according to the Lab 2 specification. Add an API that returns only active Development Requesters, build a separate requester-selection screen, remember the selected requester, support changing requester, keep the Lab 1 behaviour working, use the Zen Green visual style, and add backend and frontend tests.
+
+### How AI Helped
+
+AI helped draft the API route, React requester selector, loading and error states, local storage behaviour, responsive styling, and automated tests. It also helped diagnose tests that selected ambiguous elements after the UI gained additional headings and labels.
+
+### My Own Decision and Verification
+
+I kept requester selection separate from ticket creation because Lab 2 uses the selected requester as a temporary development identity. I verified that the API excludes inactive requesters, the selected requester remains active after a page reload, and the user can clear it with **Change requester**. I ran the backend and frontend tests and both production builds before preparing the pull request.
+
 ## Reflection
 
 AI was useful for explaining unfamiliar concepts and organizing my work. However, I still need to understand the code, test every feature, read reviewer comments, and make the final implementation decisions myself.

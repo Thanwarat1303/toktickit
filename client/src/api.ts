@@ -5,6 +5,12 @@ export interface Category {
   name: string;
 }
 
+export interface Requester {
+  id: number;
+  name: string;
+  email: string;
+}
+
 export interface SystemStatus {
   online: boolean;
   categories: Category[];
@@ -39,4 +45,14 @@ export async function checkSystem(): Promise<SystemStatus> {
     online: true,
     categories,
   };
+}
+
+export async function getRequesters(): Promise<Requester[]> {
+  const response = await fetch(`${API_URL}/api/requesters`);
+
+  if (!response.ok) {
+    throw new Error("Unable to load development requesters");
+  }
+
+  return response.json();
 }

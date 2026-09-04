@@ -1,0 +1,207 @@
+:root {
+  color: #17352d;
+  background: #f5f3ed;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 5%, rgba(84, 148, 115, 0.14), transparent 28rem),
+    #f5f3ed;
+}
+
+.app-shell {
+  color: #17352d;
+}
+
+.topbar {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid rgba(31, 79, 64, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(16px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: #17352d;
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.brand__mark,
+.requester-chip__avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: #245f4d;
+  box-shadow: 0 7px 18px rgba(36, 95, 77, 0.22);
+}
+
+.page-content {
+  max-width: 800px;
+}
+
+.hero-copy {
+  max-width: 650px;
+}
+
+.hero-copy h1 span,
+.eyebrow {
+  color: #287458;
+}
+
+.eyebrow {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.requester-card,
+.selected-card,
+.system-card {
+  border: 1px solid rgba(31, 79, 64, 0.13);
+  border-radius: 1.35rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 55px rgba(25, 64, 52, 0.09);
+}
+
+.requester-card {
+  max-width: 590px;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 5vw, 2.6rem);
+  text-align: center;
+}
+
+.requester-card__icon {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 1.15rem;
+  border-radius: 1.25rem;
+  color: #fff;
+  background: linear-gradient(145deg, #1e604a, #4e9a73);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.form-select:focus {
+  border-color: #398564;
+  box-shadow: 0 0 0 0.25rem rgba(57, 133, 100, 0.18);
+}
+
+.btn-zen {
+  color: #fff;
+  border-color: #245f4d;
+  background: #245f4d;
+}
+
+.btn-zen:hover,
+.btn-zen:focus-visible {
+  color: #fff;
+  border-color: #194638;
+  background: #194638;
+}
+
+.btn-zen:disabled {
+  color: #fff;
+  border-color: #8ca99e;
+  background: #8ca99e;
+}
+
+.btn-outline-zen {
+  color: #245f4d;
+  border: 1px solid #5f8d7b;
+  background: #fff;
+}
+
+.btn-outline-zen:hover,
+.btn-outline-zen:focus-visible {
+  color: #fff;
+  border-color: #245f4d;
+  background: #245f4d;
+}
+
+.selected-card,
+.system-card {
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+
+.selected-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border-left: 5px solid #3b8a67;
+}
+
+.requester-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.requester-chip small,
+.requester-chip strong {
+  display: block;
+}
+
+.requester-chip small {
+  color: #718079;
+  font-size: 0.72rem;
+}
+
+.requester-chip strong {
+  font-size: 0.9rem;
+}
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #d8e4de;
+  border-radius: 0.9rem;
+  background: #f2f8f5;
+}
+
+.state-panel--error {
+  justify-content: space-between;
+  color: #842029;
+  border-color: #f1b8bd;
+  background: #fff5f5;
+  text-align: left;
+}
+
+@media (max-width: 767.98px) {
+  .topbar {
+    padding: 0.75rem 0;
+  }
+
+  .requester-chip small,
+  .requester-chip__avatar {
+    display: none;
+  }
+
+  .selected-card,
+  .state-panel--error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .selected-card .btn,
+  .state-panel--error .btn {
+    width: 100%;
+  }
+}

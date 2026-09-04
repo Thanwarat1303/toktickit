@@ -15,7 +15,7 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Planned Test File | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | UNIT-01 | Unit | AC-02 | Ticket number generator | Generates a unique valid ticket number | `server/tests/lab-02/ticket-number.test.ts` | Planned |
-| API-01 | API | AC-01 | Active requester list | Returns active requesters only | `server/tests/lab-02/requesters.api.test.ts` | Planned |
+| API-01 | API | AC-01 | Active requester list | Returns active requesters only | `server/tests/lab-02/requesters.api.test.ts` | Passed |
 | API-02 | API | AC-02 | Valid ticket creation | Creates a ticket with generated number and `New` status | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-03 | API | AC-03 | Required-field validation | Rejects missing or invalid ticket fields with `400` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-04 | API | AC-04 | Active reference validation | Rejects inactive or missing requester, category, and related system | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
@@ -23,7 +23,7 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | API-06 | API | AC-06 | Ticket ownership | Rejects another requester trying to read ticket detail | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
 | API-07 | API | AC-07 | Attachment upload | Accepts allowed files within size and active-count limits | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-08 | API | AC-08 | Attachment soft removal | Stores `removedAt` and removal reason, retains metadata, and blocks download | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| UI-01 | UI Component | AC-01 | Development Requester selector | Displays active requesters and saves the selected requester | `client/tests/lab-02/RequesterSelector.test.tsx` | Planned |
+| UI-01 | UI Component | AC-01 | Development Requester selector | Displays active requesters and saves the selected requester | `client/tests/lab-02/RequesterSelector.test.tsx` | Passed |
 | UI-02 | UI Component | AC-03 | Create Ticket validation | Shows field messages and does not call the API when invalid | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-03 | UI Component | AC-05 | My Tickets screen | Displays loading, empty, no-results, and ticket-list states | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-04 | UI Component | AC-08 | Attachment section | Shows active and removed attachment states and confirms removal reason | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
@@ -98,9 +98,15 @@ npx playwright test
 
 ## 6. Final Results
 
-This document was created before implementation.
+Issue #13 verification results:
 
-Test results will be updated after each feature is completed. Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
+- Backend: 4 test files and 9 tests passed.
+- Frontend: 2 test files and 7 tests passed.
+- Backend and frontend TypeScript production builds passed.
+- API-01 verifies that only active requesters are returned in ID order.
+- UI-01 verifies loading, selection, persistence, changing requester, and API failure states.
+
+Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
 
 ## 7. Known Limitations or Deferred Tests
 
