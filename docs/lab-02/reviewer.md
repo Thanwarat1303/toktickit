@@ -34,17 +34,21 @@ For each Lab 2 feature:
 
 ### Issue #11 — Lab 2 Engineering Contract and Test Plan
 
+Reviewer: mxckiexz
+
 Reviewer comment:
 
-> To be added after peer review.
+> - Acceptance Criteria needs numbered IDs and explicit Given-When-Then format.  
+> - tests.md needs a Planned-Test Table and an AC-to-test traceability matrix.  
+> - Attachment removal must use soft removal, not hard delete.
 
 My response:
 
-> To be added after peer review.
+> I updated the Acceptance Criteria with AC IDs and explicit Given-When-Then statements. I added a Planned-Test Table and an acceptance-criterion traceability matrix to tests.md. I also updated the specification, API contract, and UI specification to use attachment soft removal with retained metadata and a required removal reason.
 
 Resolution:
 
-> To be added after peer review.
+> Changes completed. Waiting for the reviewer to re-check the updated pull request.
 
 ## Pull Requests I Reviewed for My Peer
 

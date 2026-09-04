@@ -120,11 +120,14 @@ The page should show:
 
 The attachment section should allow the ticket owner to:
 
-- Select a file
-- Upload the file
-- View file name and size
-- Download an attachment
-- Delete an attachment after confirmation
+- Select and upload an allowed file
+- View attachment name, size, and upload date
+- Download an active attachment
+- Start a soft-removal action for an active attachment
+- Enter a required removal reason
+- Confirm the soft-removal action
+
+A removed attachment must remain visible as metadata with a clear `Removed` state, removed date, and removal reason. Its download and preview actions must be disabled or hidden.
 
 ## 8. Required UI States
 

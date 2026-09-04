@@ -202,6 +202,18 @@ Possible errors:
 
 ## 6. Attachment APIs
 
+### GET /api/tickets/:ticketId/attachments
+
+Returns attachment metadata for a ticket only when it belongs to the selected requester.
+
+Request headers:
+
+```text
+X-Requester-Id: 1
+```
+
+Removed attachments remain visible in this response as metadata, with a non-null `removedAt` value.
+
 ### POST /api/tickets/:ticketId/attachments
 
 Uploads an attachment for a ticket owned by the selected requester.
@@ -215,34 +227,34 @@ Content-Type: multipart/form-data
 
 The uploaded file field name is `file`.
 
-Success response `201`:
-
-```json
-{
-  "id": 1,
-  "fileName": "wifi-error.png",
-  "mimeType": "image/png",
-  "size": 24576,
-  "createdAt": "2026-09-03T10:00:00.000Z"
-}
-```
+The API accepts JPG/JPEG, PNG, WEBP, and PDF files only. Each file must not be larger than 5 MB, and a ticket can have at most five active attachments.
 
 ### GET /api/attachments/:attachmentId/download
 
-Downloads an attachment only when its ticket belongs to the selected requester.
+Downloads an active attachment only when its ticket belongs to the selected requester.
+
+The API must reject download when the attachment has been soft-removed.
 
 ### DELETE /api/attachments/:attachmentId
 
-Deletes an attachment only when its ticket belongs to the selected requester.
+Soft-removes an active attachment only when its ticket belongs to the selected requester.
 
 Request headers:
 
 ```text
 X-Requester-Id: 1
+Content-Type: application/json
 ```
 
-Success response `204` with no response body.
+Request body:
 
+```json
+{
+  "removalReason": "Uploaded the wrong file"
+}
+```
+
+The API must keep the attachment metadata, set `removedAt`, save the removal reason, and block all future download or preview requests for that attachment.
 ## 7. Error Response Format
 
 Validation and safe application errors use this format:
