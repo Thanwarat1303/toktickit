@@ -21,8 +21,8 @@ For each Lab 2 feature:
 
 | Issue | Feature branch | Pull request | Reviewer | Result |
 | --- | --- | --- | --- | --- |
-| #11 | `feature/11-lab2-contract` | To be added | To be added | In progress |
-| #12 | `feature/12-data-and-seed` | To be added | To be added | Not started |
+| #11 | `feature/11-lab2-contract` | [PR #19](https://github.com/Thanwarat1303/toktickit/pull/19) | mxckiexz | Approved and merged |
+| #12 | `feature/12-data-seed` | To be added | mxckiexz | In progress |
 | #13 | `feature/13-requester-selection` | To be added | To be added | Not started |
 | #14 | `feature/14-create-ticket-api` | To be added | To be added | Not started |
 | #15 | `feature/15-create-ticket-ui` | To be added | To be added | Not started |
@@ -48,7 +48,7 @@ My response:
 
 Resolution:
 
-> Changes completed. Waiting for the reviewer to re-check the updated pull request.
+> Changes completed. The reviewer approved the updated pull request, and PR #19 was merged into `lab2-staging`.
 
 ## Pull Requests I Reviewed for My Peer
 

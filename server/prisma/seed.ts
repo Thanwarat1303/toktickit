@@ -1,30 +1,20 @@
 import { getPrisma } from "../src/prisma.js";
+import { seedLab2Data } from "./seed-data.js";
 
 async function main() {
   const prisma = getPrisma();
+  const result = await seedLab2Data(prisma);
 
-  const categories = [
-    "Account and Access",
-    "Hardware",
-    "Software",
-    "Network",
-  ];
-
-  for (const name of categories) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
-
-  console.log("Category seed completed.");
+  console.log("Lab 2 seed completed.");
+  console.log(`Categories: ${result.categoryCount}`);
+  console.log(`Related systems: ${result.relatedSystemCount}`);
+  console.log(`Requesters: ${result.requesterCount}`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
+  .catch((error) => {
+    console.error("Lab 2 seed failed:", error);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await getPrisma().$disconnect();

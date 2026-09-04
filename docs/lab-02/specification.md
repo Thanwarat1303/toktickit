@@ -24,9 +24,9 @@ Each ticket must contain a requester, category, related system, summary, descrip
 - Backend API for creating tickets.
 - Backend-generated unique ticket numbers.
 - Default ticket status of `New`.
-- My Tickets page with search, filter, sorting, and pagination.
+- My Tickets page with search, filtering, sorting, and pagination.
 - Ticket detail page for the ticket owner.
-- - Attachment upload, metadata display, download, and soft removal for the ticket owner.
+- Attachment upload, metadata display, download, and soft removal for the ticket owner.
 - Automated API and frontend tests.
 - Engineering documents, peer review, GitHub Project board, pull requests, and evidence for the lab submission.
 
@@ -37,14 +37,14 @@ Each ticket must contain a requester, category, related system, summary, descrip
 - Email notifications.
 - Production deployment.
 - Complex file preview features.
+
 ## 4. Functional Requirements
 
 ### FR-01: Development Requester Selection
 
-The application must show a Development Requester selector.  
-The selected requester is used as the current user for local testing.
+The application must show a Development Requester selector.
 
-Only active requesters can be selected. Changing the selected requester must update the tickets shown in My Tickets.
+The selected requester is used as the current user for local testing. Only active requesters can be selected. Changing the selected requester must update the tickets shown in My Tickets.
 
 ### FR-02: Reference Data
 
@@ -84,22 +84,26 @@ The page must show the ticket number, status, requester, category, related syste
 ### FR-06: Attachments
 
 The requester must be able to upload, view metadata for, download, and soft-remove attachments for their own ticket.
+
 Before soft removal, the requester must provide a removal reason and confirm the action.
-A removed attachment remains visible as metadata in Ticket Detail, but it cannot be downloaded or previewed. The system must reject unsupported files or files that exceed the allowed size.
+
+A removed attachment remains visible as metadata in Ticket Detail, but it cannot be downloaded or previewed.
+
+The system must reject unsupported files or files that exceed the allowed size.
 
 ## 5. Business Rules
 
-BR-01: The backend generates the ticket number. The ticket number must be unique and must not be created by the frontend.
-BR-02: A newly created ticket must have the status New.
-BR-03: Only active categories, related systems, and requesters can be used when creating a ticket.
-BR-04: Summary and description are required. Summary must not be longer than 100 characters. Description must not be longer than 2,000 characters.
-BR-05: Priority must be one of Low, Medium, or High.
-BR-06: A requester can view only their own tickets and ticket details.
-BR-07: The system must prevent duplicate ticket submissions when the same requester submits the same ticket data more than once within a short period.
-BR-08: Allowed attachment types are JPG/JPEG, PNG, WEBP, and PDF. Each file must not be larger than 5 MB.
-BR-09: A ticket can have at most five active attachments.
-BR-10: Attachment removal must use soft removal. The attachment metadata remains in the database, but a removed attachment cannot be downloaded or previewed.
-BR-11: Only the ticket owner can upload or soft-remove an attachment. A removal reason is required before an attachment is soft-removed.
+- BR-01: The backend generates the ticket number. The ticket number must be unique and must not be created by the frontend.
+- BR-02: A newly created ticket must have the status `New`.
+- BR-03: Only active categories, related systems, and requesters can be used when creating a ticket.
+- BR-04: Summary and description are required. Summary must not be longer than 100 characters. Description must not be longer than 2,000 characters.
+- BR-05: Priority must be one of `Low`, `Medium`, or `High`.
+- BR-06: A requester can view only their own tickets and ticket details.
+- BR-07: The system must prevent duplicate ticket submissions when the same requester submits the same ticket data more than once within a short period.
+- BR-08: Allowed attachment types are JPG/JPEG, PNG, WEBP, and PDF. Each file must not be larger than 5 MB.
+- BR-09: A ticket can have at most five active attachments.
+- BR-10: Attachment removal must use soft removal. The attachment metadata remains in the database, but a removed attachment cannot be downloaded or previewed.
+- BR-11: Only the ticket owner can upload or soft-remove an attachment. A removal reason is required before an attachment is soft-removed.
 
 ## 6. UI Specification Summary
 
@@ -118,20 +122,40 @@ The page should use consistent colors, spacing, buttons, validation messages, lo
 
 The database needs the following data models:
 
-Category — includes an isActive field.
-RelatedSystem — includes a name and an isActive field.
-Requester — includes name, email, and an isActive field.
-Ticket — stores ticket number, requester, category, related system, summary, description, priority, status, and timestamps.
-Attachment — belongs to one ticket and stores originalFilename, storedFilename, mimeType, sizeBytes, createdAt, removedAt, and removalReason.
+- `Category` — includes a unique name, an `isActive` field, and a creation timestamp.
+- `RelatedSystem` — includes a unique name, an `isActive` field, and a creation timestamp.
+- `Requester` — includes name, unique email, an `isActive` field, and a creation timestamp.
+- `Ticket` — stores ticket number, requester, category, related system, summary, description, priority, status, and timestamps.
+- `Attachment` — belongs to one ticket and stores `originalFilename`, `storedFilename`, `mimeType`, `sizeBytes`, `createdAt`, `removedAt`, and `removalReason`.
 
-The Attachment model uses removedAt as the soft-removal marker. An active attachment has removedAt = null. A removed attachment keeps its metadata for audit purposes but must not be downloadable or previewable.
-The database should include an index for ticketId because attachments are commonly loaded by ticket. Ticket number must be unique.
+The `Attachment` model uses `removedAt` as the soft-removal marker. An active attachment has `removedAt = null`.
 
-Seed data must include at least:
-4 required categories: Account and Access, Hardware, Software, and Network
-6 related systems
-4 active requesters
-1 inactive requester
+A removed attachment keeps its metadata for audit purposes but must not be downloadable or previewable.
+
+The database includes an index for `Attachment.ticketId` because attachments are commonly loaded by ticket. The ticket number must be unique.
+
+The seed data includes:
+
+- Four active required categories: Account and Access, Hardware, Software, and Network
+- One inactive category: Legacy Service
+- Seven active related systems
+- One inactive related system: Legacy Student Portal
+- Four active development requesters
+- One inactive development requester
+
+The seed uses `upsert` with unique category names, related-system names, and requester emails. It can therefore be executed repeatedly without creating duplicate seed records.
+
+### Future Schema Evolution for Lab 3
+
+Lab 2 uses the `Requester` model and the Development Requester selector for local testing without real authentication.
+
+In Lab 3, requester identity will be connected to a real authenticated user. The database may introduce a `User` model to store authentication information such as login identity and password-related data.
+
+The existing `Requester` model can remain as a requester profile linked to one authenticated `User`, or its profile fields can be migrated into the authenticated user model.
+
+The `requesterId` relationship on `Ticket` must be preserved or migrated safely so that existing tickets continue to belong to the correct requester after authentication is introduced.
+
+Authentication secrets and password hashes must not be stored directly in the existing development requester selector.
 
 ## 8. API Contract
 
@@ -141,7 +165,10 @@ The backend will provide APIs for:
 - Creating a ticket.
 - Reading the current requester's ticket list.
 - Reading one ticket only when it belongs to the current requester.
-- Uploading, retrieving attachment metadata, downloading active attachments, and soft-removing attachments only when the ticket belongs to the current requester.
+- Uploading attachments for a ticket owned by the current requester.
+- Retrieving attachment metadata.
+- Downloading active attachments.
+- Soft-removing attachments owned by the current requester.
 
 Each API must validate input and return safe error messages. The detailed request and response formats are documented in `api-spec.md`.
 
@@ -149,7 +176,7 @@ Each API must validate input and return safe error messages. The detailed reques
 
 ### AC-01 — Development Requester Selection
 
-**Given** active requesters exist,  
+**Given** active and inactive requesters exist,  
 **When** the user opens the requester selection screen,  
 **Then** the system displays only active requesters and allows one requester to be selected.
 
@@ -203,7 +230,16 @@ Each API must validate input and return safe error messages. The detailed reques
 
 ## 10. Definition of Done
 
-This sprint is done when the feature works according to the acceptance criteria, tests pass, the code is committed to a feature branch, a pull request is opened to `lab2-staging`, a peer review is completed, and the documentation is updated.
+This sprint is done when:
+
+- The implementation satisfies the acceptance criteria.
+- Automated tests pass.
+- The frontend and backend builds pass.
+- The code is committed to the correct feature branch.
+- A pull request is opened to `lab2-staging`.
+- A peer review and approval are completed.
+- The GitHub Project board is updated.
+- The Lab 2 documents and submission evidence are updated.
 
 ## 11. Assumptions and Decisions
 
@@ -211,4 +247,6 @@ This sprint is done when the feature works according to the acceptance criteria,
 - PostgreSQL and Prisma are used for persistent data.
 - The selected requester identity is sent with requests only for development and testing.
 - Ticket numbers are created by the backend because the frontend must not control unique business identifiers.
-- The project will use the existing GitHub Project board to track issue status.
+- The project uses the existing GitHub Project board to track issue status.
+- Inactive category and related-system fixtures are included so that BR-03 and AC-04 can be tested during the Create Ticket API implementation.
+- Attachment removal is always soft removal; the database record and metadata are retained.
