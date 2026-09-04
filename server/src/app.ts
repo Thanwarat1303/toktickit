@@ -15,12 +15,15 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Issue 4 - Category list
+// Issue 4 - Active category list
 app.get("/api/categories", async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
     const categories = await prisma.category.findMany({
+      where: {
+        isActive: true,
+      },
       select: {
         id: true,
         name: true,
