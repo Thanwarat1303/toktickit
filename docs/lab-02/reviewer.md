@@ -50,6 +50,22 @@ Resolution:
 
 > Changes completed. The reviewer approved the updated pull request, and PR #19 was merged into `lab2-staging`.
 
+### Issue #13 — Development Requester Selection
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The colors in `client/src/styles.css` did not match the required Zen Green tokens documented in `ui-spec.md`: primary `#006B3C`, secondary `#0B7A46`, pale `#EAF6EF`, and page background `#F5F7F6`.
+
+My response:
+
+> I defined the required Zen Green colors as CSS custom properties and applied them consistently to the page background, header, buttons, accents, focus states, and selected or success states. Neutral, disabled, and error colors are still used for their intended UI states.
+
+Resolution:
+
+> Changes completed. Waiting for the reviewer to re-check the updated pull request.
+
 ## Pull Requests I Reviewed for My Peer
 
 | Peer repository / pull request | What I checked | My review result |
