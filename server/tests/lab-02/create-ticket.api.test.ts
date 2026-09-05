@@ -87,6 +87,43 @@ describe("POST /api/tickets", () => {
     expect(response.body.message).toMatch(/summary is required/i);
   });
 
+  it("accepts a summary with exactly 100 characters and rejects one with 101 characters", async () => {
+    const summaryAtLimit = `${marker}${"s".repeat(100 - marker.length)}`;
+    const summaryOverLimit = `${marker}${"s".repeat(101 - marker.length)}`;
+
+    const acceptedResponse = await request(app)
+      .post("/api/tickets")
+      .set("X-Requester-Id", String(activeRequesterId))
+      .send(validTicketBody({ summary: summaryAtLimit }));
+
+    const rejectedResponse = await request(app)
+      .post("/api/tickets")
+      .set("X-Requester-Id", String(activeRequesterId))
+      .send(validTicketBody({ summary: summaryOverLimit }));
+
+    expect(acceptedResponse.status).toBe(201);
+    expect(acceptedResponse.body.summary).toHaveLength(100);
+    expect(rejectedResponse.status).toBe(400);
+    expect(rejectedResponse.body.message).toMatch(/summary must not exceed 100 characters/i);
+  });
+
+  it("accepts a description with exactly 2000 characters and rejects one with 2001 characters", async () => {
+    const acceptedResponse = await request(app)
+      .post("/api/tickets")
+      .set("X-Requester-Id", String(activeRequesterId))
+      .send(validTicketBody({ description: "d".repeat(2000) }));
+
+    const rejectedResponse = await request(app)
+      .post("/api/tickets")
+      .set("X-Requester-Id", String(activeRequesterId))
+      .send(validTicketBody({ description: "d".repeat(2001) }));
+
+    expect(acceptedResponse.status).toBe(201);
+    expect(acceptedResponse.body.description).toHaveLength(2000);
+    expect(rejectedResponse.status).toBe(400);
+    expect(rejectedResponse.body.message).toMatch(/description must not exceed 2000 characters/i);
+  });
+
   it("rejects an invalid priority and an invalid requester header", async () => {
     const invalidPriority = await request(app)
       .post("/api/tickets")

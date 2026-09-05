@@ -18,6 +18,7 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | API-01 | API | AC-01 | Active requester list | Returns active requesters only | `server/tests/lab-02/requesters.api.test.ts` | Passed |
 | API-02 | API | AC-02 | Valid ticket creation | Creates a ticket with generated number and `New` status | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-03 | API | AC-03, BR-07 | Required-field validation and duplicate prevention | Rejects invalid ticket data with `400` and matching rapid resubmission with `409` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
+| API-03B | API Boundary | AC-03, BR-04 | Summary and description length limits | Accepts 100-character summaries and 2,000-character descriptions; rejects 101-character summaries and 2,001-character descriptions with `400` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-04 | API | AC-04 | Active reference validation | Rejects inactive references with `400` and missing references with `404` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-05 | API | AC-05 | My Tickets query behaviour | Returns requester-owned tickets with search, filters, sorting, and pagination | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-06 | API | AC-06 | Ticket ownership | Rejects another requester trying to read ticket detail | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
@@ -39,7 +40,7 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | --- | --- | --- |
 | AC-01 — Development Requester Selection | DB-01, API-01, UI-01 | Seed-data test, API result, and requester selector screenshot |
 | AC-02 — Create Valid Ticket | UNIT-01, API-02, E2E-01 | Passing test output and created ticket screenshot |
-| AC-03 — Ticket Validation | API-03, UI-02 | Passing tests and validation-message screenshot |
+| AC-03 — Ticket Validation | API-03, API-03B, UI-02 | Passing tests and validation-message screenshot |
 | AC-04 — Active Reference Validation | DB-01, API-04 | Seed-data test and passing API test output |
 | AC-05 — Requester-Owned Ticket List | API-05, UI-03, E2E-01 | My Tickets screenshot with search, filters, sorting, and pagination |
 | AC-06 — Ownership Protection | API-06, E2E-01 | Passing API test and cross-requester access evidence |
@@ -111,6 +112,7 @@ Issue #14 verification results:
 - UNIT-01 verifies the backend ticket-number format.
 - API-02 verifies that a valid request creates a ticket with a backend-generated number and `New` status.
 - API-03 verifies required values, invalid priority, and duplicate submission protection.
+- API-03B verifies the exact and over-limit boundaries for summary (100/101 characters) and description (2,000/2,001 characters).
 - API-04 verifies missing and inactive requester, category, and related-system handling.
 
 Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
