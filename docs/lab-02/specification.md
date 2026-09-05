@@ -61,8 +61,11 @@ The requester must be able to create a ticket by providing:
 - Summary
 - Description
 - Priority
+- An optional supporting attachment (JPG/JPEG, PNG, WEBP, or PDF, up to 5 MB)
 
 The application must show useful validation messages when required information is missing or invalid.
+
+After the ticket is created, the application uploads the optional attachment against that new ticket. Attachment upload, download, and soft removal are implemented as the dedicated attachment feature so the same ownership and file-validation rules are used everywhere.
 
 ### FR-04: My Tickets
 

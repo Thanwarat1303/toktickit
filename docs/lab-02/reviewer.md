@@ -25,7 +25,7 @@ For each Lab 2 feature:
 | #12 | `feature/12-data-seed` | [PR #20](https://github.com/Thanwarat1303/toktickit/pull/20) | mxckiexz | Approved and merged |
 | #13 | `feature/13-requester-selection` | [PR #21](https://github.com/Thanwarat1303/toktickit/pull/21) | mxckiexz | Approved and merged |
 | #14 | `feature/14-create-ticket-api` | To be added | mxckiexz | Implementation complete; awaiting PR |
-| #15 | `feature/15-create-ticket-ui` | To be added | To be added | Not started |
+| #15 | `feature/15-create-ticket-ui` | To be added | To be added | Implementation complete; awaiting PR |
 | #16 | `feature/16-my-tickets` | To be added | To be added | Not started |
 | #17 | `feature/17-ticket-detail-attachments` | To be added | To be added | Not started |
 | #18 | `feature/18-final-testing-release` | To be added | To be added | Not started |
@@ -65,6 +65,22 @@ My response:
 Resolution:
 
 > Changes completed. Waiting for the reviewer to re-check the updated pull request.
+
+### Issue #15 — Create Ticket UI
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The Create Ticket form needs an attachment picker for the Lab 2 evidence flow. The test record also claimed the busy submit state passed, but the UI test did not explicitly assert it.
+
+My response:
+
+> I added an explicit UI test that checks the submit button becomes disabled and displays `Submitting...` while ticket creation is pending. I also updated the specification and test plan to make the attachment requirement visible in the Create Ticket flow. The actual file picker, upload request, ownership checks, and soft removal will be implemented together in Issue #17 so the flow uses the complete attachment API.
+
+Resolution:
+
+> The busy-state evidence is now covered by an automated test. Attachment implementation remains planned for Issue #17 before final PDF evidence is collected.
 
 ## Pull Requests I Reviewed for My Peer
 
