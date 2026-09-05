@@ -14,11 +14,11 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Planned Test File | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| UNIT-01 | Unit | AC-02 | Ticket number generator | Generates a unique valid ticket number | `server/tests/lab-02/ticket-number.test.ts` | Planned |
+| UNIT-01 | Unit | AC-02 | Ticket number generator | Formats a database ID as the required ticket number | `server/tests/lab-02/ticket-number.test.ts` | Passed |
 | API-01 | API | AC-01 | Active requester list | Returns active requesters only | `server/tests/lab-02/requesters.api.test.ts` | Passed |
-| API-02 | API | AC-02 | Valid ticket creation | Creates a ticket with generated number and `New` status | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-03 | API | AC-03 | Required-field validation | Rejects missing or invalid ticket fields with `400` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-04 | API | AC-04 | Active reference validation | Rejects inactive or missing requester, category, and related system | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
+| API-02 | API | AC-02 | Valid ticket creation | Creates a ticket with generated number and `New` status | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
+| API-03 | API | AC-03, BR-07 | Required-field validation and duplicate prevention | Rejects invalid ticket data with `400` and matching rapid resubmission with `409` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
+| API-04 | API | AC-04 | Active reference validation | Rejects inactive references with `400` and missing references with `404` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-05 | API | AC-05 | My Tickets query behaviour | Returns requester-owned tickets with search, filters, sorting, and pagination | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-06 | API | AC-06 | Ticket ownership | Rejects another requester trying to read ticket detail | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
 | API-07 | API | AC-07 | Attachment upload | Accepts allowed files within size and active-count limits | `server/tests/lab-02/attachments.api.test.ts` | Planned |
@@ -105,6 +105,13 @@ Issue #13 verification results:
 - Backend and frontend TypeScript production builds passed.
 - API-01 verifies that only active requesters are returned in ID order.
 - UI-01 verifies loading, selection, persistence, changing requester, and API failure states.
+
+Issue #14 verification results:
+
+- UNIT-01 verifies the backend ticket-number format.
+- API-02 verifies that a valid request creates a ticket with a backend-generated number and `New` status.
+- API-03 verifies required values, invalid priority, and duplicate submission protection.
+- API-04 verifies missing and inactive requester, category, and related-system handling.
 
 Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
 

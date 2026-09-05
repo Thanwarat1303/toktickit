@@ -103,8 +103,9 @@ Success response `201`:
 Possible errors:
 
 - `400` for missing or invalid fields.
+- `400` when the selected requester, category, or related system is inactive.
 - `404` when the requester, category, or related system does not exist.
-- `409` when a duplicate ticket submission is detected.
+- `409` when the same requester submits the same category, related system, summary, description, and priority within 60 seconds.
 - `500` for an unexpected server error with a safe message.
 
 ## 4. My Tickets API

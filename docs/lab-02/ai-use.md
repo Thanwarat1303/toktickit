@@ -74,6 +74,20 @@ AI helped draft the API route, React requester selector, loading and error state
 
 I kept requester selection separate from ticket creation because Lab 2 uses the selected requester as a temporary development identity. I verified that the API excludes inactive requesters, the selected requester remains active after a page reload, and the user can clear it with **Change requester**. I ran the backend and frontend tests and both production builds before preparing the pull request.
 
+## Record 5 — Create Ticket API
+
+### Prompt
+
+> Help me implement the Create Ticket API for Lab 2. It must use the selected development requester in `X-Requester-Id`, validate all ticket fields, reject inactive reference data, create a backend-generated ticket number with status `New`, prevent rapid duplicate submissions, and include API tests.
+
+### How AI Helped
+
+AI helped break the route into validation, reference-data checks, duplicate detection, ticket creation, response formatting, and test cases.
+
+### My Own Decision and Verification
+
+I used the Lab 2 API contract to keep the requester identity in the header rather than the request body. I chose a 60-second duplicate window and documented it in the API contract. I kept the public ticket number generated on the backend from the database ID so the frontend cannot choose it. I will run the server tests and TypeScript build locally before opening the Feature 14 pull request.
+
 ## Reflection
 
 AI was useful for explaining unfamiliar concepts and organizing my work. However, I still need to understand the code, test every feature, read reviewer comments, and make the final implementation decisions myself.
