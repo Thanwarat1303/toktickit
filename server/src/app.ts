@@ -44,6 +44,34 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
+// Lab 2, Issue 15 dependency - Active related-system list
+// The Create Ticket form must only offer systems that can be used to create a
+// ticket. The POST route performs the same check again as the security guard.
+app.get("/api/related-systems", async (_req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+
+    const relatedSystems = await prisma.relatedSystem.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    res.status(200).json(relatedSystems);
+  } catch {
+    res.status(500).json({
+      message: "Unable to load related systems",
+    });
+  }
+});
+
 // Lab 2, Issue 13 - Active Development Requester list
 app.get("/api/requesters", async (_req: Request, res: Response) => {
   try {

@@ -93,3 +93,17 @@ I used the Lab 2 API contract to keep the requester identity in the header rathe
 AI was useful for explaining unfamiliar concepts and organizing my work. However, I still need to understand the code, test every feature, read reviewer comments, and make the final implementation decisions myself.
 
 I will update this file when AI is used again for later Lab 2 tasks, including database design, API implementation, frontend implementation, debugging, and testing.
+
+## Record 6 — Create Ticket UI
+
+### Prompt
+
+> Help me implement Issue #15: a Create Ticket form that follows the Lab 2 UI specification, validates required fields, loads active reference data, sends the selected requester ID to the API, keeps form data after an error, and shows the generated ticket number after success.
+
+### How AI Helped
+
+AI helped organize the React form into loading, validation, submitting, failure, and success states. It also identified that the form needs an active Related Systems lookup endpoint before the dropdown can work with real data.
+
+### My Own Decision and Verification
+
+I kept the backend as the final authority for validation and used client-side validation only to give faster feedback. I kept the selected requester read-only in the form because it comes from the Development Requester selector. I will run the frontend and backend tests, build both projects, and manually create a ticket before opening the pull request.

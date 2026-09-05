@@ -25,7 +25,7 @@ For each Lab 2 feature:
 | #12 | `feature/12-data-seed` | [PR #20](https://github.com/Thanwarat1303/toktickit/pull/20) | mxckiexz | Approved and merged |
 | #13 | `feature/13-requester-selection` | [PR #21](https://github.com/Thanwarat1303/toktickit/pull/21) | mxckiexz | Approved and merged |
 | #14 | `feature/14-create-ticket-api` | To be added | mxckiexz | Implementation complete; awaiting PR |
-| #15 | `feature/15-create-ticket-ui` | To be added | To be added | Not started |
+| #15 | `feature/15-create-ticket-ui` | To be added | To be added | Implementation complete; awaiting PR |
 | #16 | `feature/16-my-tickets` | To be added | To be added | Not started |
 | #17 | `feature/17-ticket-detail-attachments` | To be added | To be added | Not started |
 | #18 | `feature/18-final-testing-release` | To be added | To be added | Not started |

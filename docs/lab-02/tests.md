@@ -25,10 +25,10 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | API-07 | API | AC-07 | Attachment upload | Accepts allowed files within size and active-count limits | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-08 | API | AC-08 | Attachment soft removal | Stores `removedAt` and removal reason, retains metadata, and blocks download | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | UI-01 | UI Component | AC-01 | Development Requester selector | Displays active requesters and saves the selected requester | `client/tests/lab-02/RequesterSelector.test.tsx` | Passed |
-| UI-02 | UI Component | AC-03 | Create Ticket validation | Shows field messages and does not call the API when invalid | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
+| UI-02 | UI Component | AC-02, AC-03 | Create Ticket form and validation | Loads active reference data, shows field messages without calling the API when invalid, submits the selected requester, and keeps data after an API error | `client/tests/lab-02/CreateTicket.test.tsx` | Passed |
 | UI-03 | UI Component | AC-05 | My Tickets screen | Displays loading, empty, no-results, and ticket-list states | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-04 | UI Component | AC-08 | Attachment section | Shows active and removed attachment states and confirms removal reason | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
-| STYLE-01 | UI Style | AC-09 | Zen Green design tokens | Checks required classes, labels, validation placement, and button busy state | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
+| STYLE-01 | UI Style | AC-09 | Zen Green design tokens | Uses the documented design tokens, required labels, field-level validation placement, and a busy submit state | `client/tests/lab-02/CreateTicket.test.tsx` | Passed |
 | RESPONSIVE-01 | Responsive | AC-09 | Responsive layouts | Checks desktop, tablet, and mobile screenshots for clipping or overflow | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-01 | End-to-end | AC-02, AC-05, AC-06 | Requester ticket flow | Requester A creates and finds a ticket; Requester B cannot access it | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-02 | End-to-end | AC-07, AC-08 | Attachment lifecycle | Owner uploads and soft-removes an attachment; removed file cannot download | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
@@ -114,6 +114,12 @@ Issue #14 verification results:
 - API-03 verifies required values, invalid priority, and duplicate submission protection.
 - API-03B verifies the exact and over-limit boundaries for summary (100/101 characters) and description (2,000/2,001 characters).
 - API-04 verifies missing and inactive requester, category, and related-system handling.
+
+Issue #15 verification results:
+
+- UI-02 verifies client-side required-field validation, successful submission using the selected requester, and preserving entered data after an API error.
+- STYLE-01 verifies the Create Ticket form uses the documented Zen Green UI classes, field labels, error placement, and busy submit state.
+- The form reads active categories and related systems, while the backend also validates those values before creating a ticket.
 
 Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
 
