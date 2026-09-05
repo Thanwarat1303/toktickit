@@ -63,6 +63,43 @@ describe("Create Ticket form", () => {
     expect(api.createTicket).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 1 }));
   });
 
+  it("shows a busy disabled submit button while ticket creation is in progress", async () => {
+    mockReferenceData();
+
+    let resolveTicket!: (ticket: api.CreatedTicket) => void;
+    vi.spyOn(api, "createTicket").mockReturnValue(
+      new Promise<api.CreatedTicket>((resolve) => {
+        resolveTicket = resolve;
+      })
+    );
+
+    render(<CreateTicketForm requester={requester} />);
+
+    fireEvent.change(await screen.findByLabelText(/^Category/), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText(/^Related System/), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText(/^Summary/), { target: { value: "Wi-Fi is unavailable" } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: "My laptop cannot connect to the campus network." } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
+
+    const submitButton = screen.getByRole("button", { name: "Submitting..." });
+    expect(submitButton).toBeDisabled();
+
+    resolveTicket({
+      id: 1,
+      ticketNumber: "TK-000001",
+      status: "New",
+      requesterId: 1,
+      categoryId: 1,
+      relatedSystemId: 2,
+      summary: "Wi-Fi is unavailable",
+      description: "My laptop cannot connect to the campus network.",
+      priority: "Medium",
+      createdAt: "2026-09-05T10:00:00.000Z",
+    });
+
+    expect(await screen.findByText("TK-000001")).toBeInTheDocument();
+  });
+
   it("keeps the entered form data visible when the API rejects submission", async () => {
     mockReferenceData();
     vi.spyOn(api, "createTicket").mockRejectedValue(

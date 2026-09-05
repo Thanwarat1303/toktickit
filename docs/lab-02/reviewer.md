@@ -66,6 +66,22 @@ Resolution:
 
 > Changes completed. Waiting for the reviewer to re-check the updated pull request.
 
+### Issue #15 — Create Ticket UI
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The Create Ticket form needs an attachment picker for the Lab 2 evidence flow. The test record also claimed the busy submit state passed, but the UI test did not explicitly assert it.
+
+My response:
+
+> I added an explicit UI test that checks the submit button becomes disabled and displays `Submitting...` while ticket creation is pending. I also updated the specification and test plan to make the attachment requirement visible in the Create Ticket flow. The actual file picker, upload request, ownership checks, and soft removal will be implemented together in Issue #17 so the flow uses the complete attachment API.
+
+Resolution:
+
+> The busy-state evidence is now covered by an automated test. Attachment implementation remains planned for Issue #17 before final PDF evidence is collected.
+
 ## Pull Requests I Reviewed for My Peer
 
 | Peer repository / pull request | What I checked | My review result |
