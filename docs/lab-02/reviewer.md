@@ -22,8 +22,8 @@ For each Lab 2 feature:
 | Issue | Feature branch | Pull request | Reviewer | Result |
 | --- | --- | --- | --- | --- |
 | #11 | `feature/11-lab2-contract` | [PR #19](https://github.com/Thanwarat1303/toktickit/pull/19) | mxckiexz | Approved and merged |
-| #12 | `feature/12-data-seed` | To be added | mxckiexz | In progress |
-| #13 | `feature/13-requester-selection` | To be added | To be added | Not started |
+| #12 | `feature/12-data-seed` | [PR #20](https://github.com/Thanwarat1303/toktickit/pull/20) | mxckiexz | Approved and merged |
+| #13 | `feature/13-requester-selection` | To be added | mxckiexz | Implementation complete; awaiting PR |
 | #14 | `feature/14-create-ticket-api` | To be added | To be added | Not started |
 | #15 | `feature/15-create-ticket-ui` | To be added | To be added | Not started |
 | #16 | `feature/16-my-tickets` | To be added | To be added | Not started |
@@ -49,6 +49,22 @@ My response:
 Resolution:
 
 > Changes completed. The reviewer approved the updated pull request, and PR #19 was merged into `lab2-staging`.
+
+### Issue #13 — Development Requester Selection
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The colors in `client/src/styles.css` did not match the required Zen Green tokens documented in `ui-spec.md`: primary `#006B3C`, secondary `#0B7A46`, pale `#EAF6EF`, and page background `#F5F7F6`.
+
+My response:
+
+> I defined the required Zen Green colors as CSS custom properties and applied them consistently to the page background, header, buttons, accents, focus states, and selected or success states. Neutral, disabled, and error colors are still used for their intended UI states.
+
+Resolution:
+
+> Changes completed. Waiting for the reviewer to re-check the updated pull request.
 
 ## Pull Requests I Reviewed for My Peer
 
