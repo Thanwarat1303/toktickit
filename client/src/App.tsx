@@ -5,6 +5,7 @@ import {
   type Requester,
 } from "./api.js";
 import RequesterSelector from "./RequesterSelector.js";
+import CreateTicketForm from "./CreateTicketForm.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 const REQUESTER_STORAGE_KEY = "toktickit.developmentRequester";
@@ -95,24 +96,27 @@ export default function App() {
         {!requester ? (
           <RequesterSelector onSelect={handleRequesterSelect} />
         ) : (
-          <section className="selected-card" aria-labelledby="selected-heading">
-            <div>
-              <p className="eyebrow mb-2">Ready to continue</p>
-              <h2 id="selected-heading" className="h3 mb-2">
-                Welcome, {requester.name}
-              </h2>
-              <p className="text-secondary mb-1">{requester.email}</p>
-              <p className="mb-0">
-                Your requester identity is active for this browser.
-              </p>
-            </div>
-            <button
-              className="btn btn-outline-zen"
-              onClick={handleRequesterChange}
-            >
-              Change requester
-            </button>
-          </section>
+          <>
+            <section className="selected-card" aria-labelledby="selected-heading">
+              <div>
+                <p className="eyebrow mb-2">Ready to continue</p>
+                <h2 id="selected-heading" className="h3 mb-2">
+                  Welcome, {requester.name}
+                </h2>
+                <p className="text-secondary mb-1">{requester.email}</p>
+                <p className="mb-0">
+                  Your requester identity is active for this browser.
+                </p>
+              </div>
+              <button
+                className="btn btn-outline-zen"
+                onClick={handleRequesterChange}
+              >
+                Change requester
+              </button>
+            </section>
+            <CreateTicketForm requester={requester} />
+          </>
         )}
 
         <section className="system-card mt-4" aria-labelledby="system-heading">
