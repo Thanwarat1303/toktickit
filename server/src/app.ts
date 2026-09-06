@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { Priority } from "@prisma/client";
+import { Prisma, Priority } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "./prisma.js";
 import { generateTicketNumber } from "./ticket-number.js";
@@ -140,6 +140,18 @@ function createTicketResponse(ticket: {
   };
 }
 
+function queryString(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function queryPositiveInteger(value: unknown): number | undefined {
+  const text = queryString(value);
+  if (!text || !/^\d+$/.test(text)) return undefined;
+
+  const parsed = Number(text);
+  return positiveInteger(parsed) ? parsed : undefined;
+}
+
 app.post("/api/tickets", async (req: Request, res: Response) => {
   const requesterId = Number(req.header("X-Requester-Id"));
   const body = req.body ?? {};
@@ -252,6 +264,127 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
     return res.status(201).json(createTicketResponse(result.ticket));
   } catch {
     return res.status(500).json({ message: "Unable to create the ticket" });
+  }
+});
+
+// Lab 2, Issue 16 - My Tickets
+// The temporary requester header is deliberately part of this query.  Even if
+// somebody changes the URL in the browser, the database query is scoped to the
+// selected requester and therefore cannot return another requester's tickets.
+app.get("/api/tickets", async (req: Request, res: Response) => {
+  const requesterId = Number(req.header("X-Requester-Id"));
+
+  if (!positiveInteger(requesterId)) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  const search = queryString(req.query.search);
+  const status = queryString(req.query.status);
+  const categoryIdText = queryString(req.query.categoryId);
+  const relatedSystemIdText = queryString(req.query.relatedSystemId);
+  const priorityText = queryString(req.query.priority);
+  const sortBy = queryString(req.query.sortBy) ?? "createdAt";
+  const sortOrder = queryString(req.query.sortOrder) ?? "desc";
+  const pageText = queryString(req.query.page);
+  const pageSizeText = queryString(req.query.pageSize);
+
+  const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
+  const relatedSystemId = relatedSystemIdText
+    ? queryPositiveInteger(relatedSystemIdText)
+    : undefined;
+  const page = pageText ? queryPositiveInteger(pageText) : 1;
+  const pageSize = pageSizeText ? queryPositiveInteger(pageSizeText) : 10;
+
+  if (
+    (categoryIdText && !categoryId) ||
+    (relatedSystemIdText && !relatedSystemId) ||
+    !page ||
+    !pageSize ||
+    pageSize > 50
+  ) {
+    return res.status(400).json({ message: "Pagination and reference filters must be positive integers" });
+  }
+
+  if (priorityText && !(priorityText in priorityValues)) {
+    return res.status(400).json({ message: "Priority must be Low, Medium, or High" });
+  }
+
+  if (!["createdAt", "summary", "priority"].includes(sortBy)) {
+    return res.status(400).json({ message: "sortBy must be createdAt, summary, or priority" });
+  }
+
+  if (sortOrder !== "asc" && sortOrder !== "desc") {
+    return res.status(400).json({ message: "sortOrder must be asc or desc" });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const requester = await prisma.requester.findUnique({ where: { id: requesterId } });
+
+    if (!requester) {
+      return res.status(404).json({ message: "Requester was not found" });
+    }
+
+    if (!requester.isActive) {
+      return res.status(400).json({ message: "Requester must be active" });
+    }
+
+    const where = {
+      requesterId,
+      ...(search
+        ? {
+            OR: [
+              { ticketNumber: { contains: search, mode: "insensitive" as const } },
+              { summary: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(status ? { currentStatus: status } : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(relatedSystemId ? { relatedSystemId } : {}),
+      ...(priorityText ? { priority: priorityValues[priorityText] } : {}),
+    };
+
+    const direction: Prisma.SortOrder = sortOrder;
+    const primaryOrder: Prisma.TicketOrderByWithRelationInput =
+      sortBy === "summary"
+        ? { summary: direction }
+        : sortBy === "priority"
+          ? { priority: direction }
+          : { createdAt: direction };
+
+    const [tickets, totalItems] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+        },
+        orderBy: [primaryOrder, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      items: tickets.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.summary,
+        priority: ticket.priority[0] + ticket.priority.slice(1).toLowerCase(),
+        status: ticket.currentStatus,
+        category: ticket.category,
+        relatedSystem: ticket.relatedSystem,
+        createdAt: ticket.createdAt,
+      })),
+      page,
+      pageSize,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+    });
+  } catch {
+    return res.status(500).json({ message: "Unable to load tickets" });
   }
 });
 

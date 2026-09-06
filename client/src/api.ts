@@ -43,6 +43,38 @@ export interface CreatedTicket {
   createdAt: string;
 }
 
+export interface TicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  priority: "Low" | "Medium" | "High";
+  status: string;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  createdAt: string;
+}
+
+export interface TicketListResponse {
+  items: TicketListItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface TicketListQuery {
+  requesterId: number;
+  search?: string;
+  status?: string;
+  categoryId?: number;
+  relatedSystemId?: number;
+  priority?: "Low" | "Medium" | "High";
+  sortBy?: "createdAt" | "summary" | "priority";
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
 export class ApiRequestError extends Error {
   constructor(message: string) {
     super(message);
@@ -107,6 +139,40 @@ export async function getRelatedSystems(): Promise<RelatedSystem[]> {
     throw new ApiRequestError(
       await getErrorMessage(response, "Unable to load related systems")
     );
+  }
+
+  return response.json();
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const response = await fetch(`${API_URL}/api/categories`);
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      await getErrorMessage(response, "Unable to load request categories")
+    );
+  }
+
+  return response.json();
+}
+
+export async function getTickets(query: TicketListQuery): Promise<TicketListResponse> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (key !== "requesterId" && value !== undefined && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+
+  const response = await fetch(`${API_URL}/api/tickets?${params.toString()}`, {
+    headers: {
+      "X-Requester-Id": String(query.requesterId),
+    },
+  });
+
+  if (!response.ok) {
+    throw new ApiRequestError(await getErrorMessage(response, "Unable to load tickets"));
   }
 
   return response.json();

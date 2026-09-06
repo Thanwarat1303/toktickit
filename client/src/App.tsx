@@ -6,6 +6,7 @@ import {
 } from "./api.js";
 import RequesterSelector from "./RequesterSelector.js";
 import CreateTicketForm from "./CreateTicketForm.js";
+import MyTickets from "./MyTickets.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 const REQUESTER_STORAGE_KEY = "toktickit.developmentRequester";
@@ -31,6 +32,7 @@ export default function App() {
   const [requester, setRequester] = useState<Requester | null>(
     loadSavedRequester
   );
+  const [view, setView] = useState<"create" | "tickets">("create");
 
   function handleRequesterSelect(selectedRequester: Requester) {
     localStorage.setItem(
@@ -38,11 +40,13 @@ export default function App() {
       JSON.stringify(selectedRequester)
     );
     setRequester(selectedRequester);
+    setView("create");
   }
 
   function handleRequesterChange() {
     localStorage.removeItem(REQUESTER_STORAGE_KEY);
     setRequester(null);
+    setView("create");
   }
 
   async function handleCheck() {
@@ -115,7 +119,11 @@ export default function App() {
                 Change requester
               </button>
             </section>
-            <CreateTicketForm requester={requester} />
+            <nav className="app-nav" aria-label="Ticket views">
+              <button className={view === "create" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => setView("create")}>New Ticket</button>
+              <button className={view === "tickets" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => setView("tickets")}>My Tickets</button>
+            </nav>
+            {view === "create" ? <CreateTicketForm requester={requester} /> : <MyTickets requester={requester} />}
           </>
         )}
 

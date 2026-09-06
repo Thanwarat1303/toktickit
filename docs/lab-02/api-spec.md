@@ -134,6 +134,12 @@ page
 pageSize
 ```
 
+- `search` matches the ticket number or summary without case sensitivity.
+- `status`, `categoryId`, `relatedSystemId`, and `priority` combine with AND logic.
+- `sortBy` accepts `createdAt`, `summary`, or `priority`; `sortOrder` accepts `asc` or `desc`.
+- The default is `createdAt` descending. `id` descending is used as a stable tie-breaker.
+- `page` defaults to `1`; `pageSize` defaults to `10` and cannot exceed `50`.
+
 Example:
 
 ```text
@@ -262,7 +268,7 @@ Validation and safe application errors use this format:
 
 ```json
 {
-  "error": "A clear message for the user"
+  "message": "A clear message for the user"
 }
 ```
 
