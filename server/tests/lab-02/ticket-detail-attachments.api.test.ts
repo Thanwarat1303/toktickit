@@ -189,6 +189,26 @@ describe("Ticket detail and attachments", () => {
     expect(response.status).toBe(413);
   });
 
+  it("accepts an attachment exactly 5 MB in size", async () => {
+    const ticketForUpload = await createOwnedTicket(`${marker} exact size upload`);
+    const exactLimitFile = Buffer.alloc(5 * 1024 * 1024, "a");
+
+    const response = await request(app)
+      .post(`/api/tickets/${ticketForUpload}/attachments`)
+      .set("X-Requester-Id", String(ownerId))
+      .attach("file", exactLimitFile, {
+        filename: "exactly-five-megabytes.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      ticketId: ticketForUpload,
+      originalFilename: "exactly-five-megabytes.pdf",
+      sizeBytes: exactLimitFile.length,
+    });
+  });
+
   it("rejects a sixth active attachment", async () => {
     const ticketForUpload = await createOwnedTicket(`${marker} attachment count limit`);
 
@@ -274,6 +294,17 @@ describe("Ticket detail and attachments", () => {
       removalReason: "Uploaded newer evidence",
     });
     expect(downloadResponse.status).toBe(410);
+  });
+
+  it("rejects removing an attachment more than once without overwriting its reason", async () => {
+    const secondRemoveResponse = await request(app)
+      .delete(`/api/attachments/${attachmentId}`)
+      .set("X-Requester-Id", String(ownerId))
+      .send({ removalReason: "A different reason" });
+    const attachment = await prisma.attachment.findUniqueOrThrow({ where: { id: attachmentId } });
+
+    expect(secondRemoveResponse.status).toBe(409);
+    expect(attachment.removalReason).toBe("Uploaded newer evidence");
   });
 
   it("rejects invalid attachment requests safely", async () => {

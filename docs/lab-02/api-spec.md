@@ -357,6 +357,7 @@ Possible errors:
 - `400` when `attachmentId`, `X-Requester-Id`, or `removalReason` is missing or invalid.
 - `403` when the attachment belongs to another requester.
 - `404` when the attachment does not exist.
+- `409` when the attachment has already been soft-removed.
 - `500` with a safe message when the attachment cannot be removed.
 ## 7. Error Response Format
 

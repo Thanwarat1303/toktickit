@@ -112,6 +112,7 @@ const priorityValues: Record<string, Priority> = {
 
 const duplicateWindowMs = 60_000;
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
+const maxMultipartRequestBytes = maxAttachmentSizeBytes + 1024 * 1024;
 const maxActiveAttachmentsPerTicket = 5;
 const allowedAttachmentMimeTypes = new Set([
   "image/jpeg",
@@ -125,6 +126,8 @@ interface UploadedMultipartFile {
   mimeType: string;
   bytes: Buffer;
 }
+
+class RequestBodyTooLargeError extends Error {}
 
 function positiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
@@ -211,12 +214,27 @@ function multipartBoundary(req: Request) {
   return boundaryMatch?.[1] ?? boundaryMatch?.[2];
 }
 
-function collectRequestBody(req: Request): Promise<Buffer> {
+function collectRequestBody(req: Request, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let receivedBytes = 0;
+    let exceededLimit = false;
 
     req.on("data", (chunk: Buffer | string) => {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      if (exceededLimit) {
+        return;
+      }
+
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      receivedBytes += buffer.length;
+
+      if (receivedBytes > maxBytes) {
+        exceededLimit = true;
+        reject(new RequestBodyTooLargeError());
+        return;
+      }
+
+      chunks.push(buffer);
     });
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
@@ -602,7 +620,7 @@ app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Respons
   }
 
   try {
-    const uploadedFile = parseMultipartFile(req, await collectRequestBody(req));
+    const uploadedFile = parseMultipartFile(req, await collectRequestBody(req, maxMultipartRequestBytes));
 
     if (!uploadedFile || uploadedFile.bytes.length === 0) {
       return res.status(400).json({ message: "A file is required" });
@@ -670,7 +688,11 @@ app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Respons
     });
 
     return res.status(201).json(attachmentResponse(attachment));
-  } catch {
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return res.status(413).json({ message: "Attachment must not exceed 5 MB" });
+    }
+
     return res.status(500).json({ message: "Unable to upload attachment" });
   }
 });
@@ -753,10 +775,14 @@ app.delete("/api/attachments/:attachmentId", async (req: Request, res: Response)
       return res.status(403).json({ message: "You can only remove your own attachments" });
     }
 
+    if (attachment.removedAt) {
+      return res.status(409).json({ message: "This attachment has already been removed" });
+    }
+
     const updatedAttachment = await prisma.attachment.update({
       where: { id: attachmentId },
       data: {
-        removedAt: attachment.removedAt ?? new Date(),
+        removedAt: new Date(),
         removalReason,
       },
       select: {

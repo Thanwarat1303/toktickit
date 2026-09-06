@@ -98,6 +98,10 @@ Resolution:
 
 > Changes completed locally. Waiting for the reviewer to re-check the updated pull request.
 
+Follow-up review and response:
+
+> Repeat removal is now rejected with `409`, so the original removal reason cannot be overwritten. The upload body collector now stops buffering once it reaches a bounded multipart request limit, and API tests cover a file exactly at the 5 MB limit as well as an over-limit file. Replacing the small, scoped parser with a streaming library such as multer is deferred because it is a broader infrastructure change rather than a Lab 2 requirement.
+
 ## Pull Requests I Reviewed for My Peer
 
 | Peer repository / pull request | What I checked | My review result |
