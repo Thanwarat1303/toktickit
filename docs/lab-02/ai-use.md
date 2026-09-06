@@ -135,3 +135,17 @@ AI helped separate the feature into backend ownership checks, safe attachment me
 ### My Own Decision and Verification
 
 I kept attachment metadata visible after removal because the lab requires soft removal instead of hard deletion. I also made sure the list response does not expose internal stored filenames or file paths. I will verify the feature with backend API tests, frontend component tests, TypeScript builds, and manual browser evidence before opening the pull request.
+
+## Record 9 — Final Testing and Release Evidence
+
+### Prompt
+
+> Help me prepare a final Lab 2 verification checklist that covers backend tests, frontend tests, production builds, manual requester flows, attachment validation, responsive evidence, and the GitHub peer-review record.
+
+### How AI Helped
+
+AI helped turn the existing acceptance criteria and planned tests into a release checklist. It also identified missing peer-review links in the review record so the Git workflow evidence can be checked before final submission.
+
+### My Own Decision and Verification
+
+I will run every listed command locally, keep the actual pass counts, and capture browser screenshots only after seeing each required state myself. I will not mark manual evidence as complete until the corresponding screen, validation message, or ownership behaviour has been checked in the running application.
