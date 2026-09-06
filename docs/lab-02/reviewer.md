@@ -1,0 +1,114 @@
+# Lab 2 Peer Review Record
+
+## My Information
+
+- Author: Thanwarat Chantara
+- GitHub username: Thanwarat1303
+
+## Review Process
+
+For each Lab 2 feature:
+
+1. I create a feature branch from `lab2-staging`.
+2. I implement and test the feature.
+3. I open a pull request to `lab2-staging`.
+4. I request a review from my peer.
+5. If the reviewer requests changes, I fix the issue and push the update.
+6. The reviewer approves the pull request.
+7. The pull request is merged into `lab2-staging`.
+
+## Pull Requests I Authored
+
+| Issue | Feature branch | Pull request | Reviewer | Result |
+| --- | --- | --- | --- | --- |
+| #11 | `feature/11-lab2-contract` | [PR #19](https://github.com/Thanwarat1303/toktickit/pull/19) | mxckiexz | Approved and merged |
+| #12 | `feature/12-data-seed` | [PR #20](https://github.com/Thanwarat1303/toktickit/pull/20) | mxckiexz | Approved and merged |
+| #13 | `feature/13-requester-selection` | [PR #21](https://github.com/Thanwarat1303/toktickit/pull/21) | mxckiexz | Approved and merged |
+| #14 | `feature/14-create-ticket-api` | [PR #22](https://github.com/Thanwarat1303/toktickit/pull/22) | mxckiexz | Approved and merged |
+| #15 | `feature/15-create-ticket-ui` | [PR #23](https://github.com/Thanwarat1303/toktickit/pull/23) | mxckiexz | Approved and merged |
+| #16 | `feature/16-my-tickets` | [PR #24](https://github.com/Thanwarat1303/toktickit/pull/24) | mxckiexz | Approved and merged |
+| #17 | `feature/17-ticket-detail-attachments` | [PR #25](https://github.com/Thanwarat1303/toktickit/pull/25) | mxckiexz | Approved and merged |
+| #18 | `feature/18-final-testing-release` | To be added | To be added | Final verification in progress |
+
+## Reviewer Comments and My Responses
+
+### Issue #11 — Lab 2 Engineering Contract and Test Plan
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> - Acceptance Criteria needs numbered IDs and explicit Given-When-Then format.  
+> - tests.md needs a Planned-Test Table and an AC-to-test traceability matrix.  
+> - Attachment removal must use soft removal, not hard delete.
+
+My response:
+
+> I updated the Acceptance Criteria with AC IDs and explicit Given-When-Then statements. I added a Planned-Test Table and an acceptance-criterion traceability matrix to tests.md. I also updated the specification, API contract, and UI specification to use attachment soft removal with retained metadata and a required removal reason.
+
+Resolution:
+
+> Changes completed. The reviewer approved the updated pull request, and PR #19 was merged into `lab2-staging`.
+
+### Issue #13 — Development Requester Selection
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The colors in `client/src/styles.css` did not match the required Zen Green tokens documented in `ui-spec.md`: primary `#006B3C`, secondary `#0B7A46`, pale `#EAF6EF`, and page background `#F5F7F6`.
+
+My response:
+
+> I defined the required Zen Green colors as CSS custom properties and applied them consistently to the page background, header, buttons, accents, focus states, and selected or success states. Neutral, disabled, and error colors are still used for their intended UI states.
+
+Resolution:
+
+> Changes completed. Waiting for the reviewer to re-check the updated pull request.
+
+### Issue #15 — Create Ticket UI
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> The Create Ticket form needs an attachment picker for the Lab 2 evidence flow. The test record also claimed the busy submit state passed, but the UI test did not explicitly assert it.
+
+My response:
+
+> I added an explicit UI test that checks the submit button becomes disabled and displays `Submitting...` while ticket creation is pending. I also updated the specification and test plan to make the attachment requirement visible in the Create Ticket flow. The actual file picker, upload request, ownership checks, and soft removal will be implemented together in Issue #17 so the flow uses the complete attachment API.
+
+Resolution:
+
+> The busy-state evidence is now covered by an automated test. Attachment implementation remains planned for Issue #17 before final PDF evidence is collected.
+
+### Issue #17 — Ticket Detail and Attachments
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> POST `/api/tickets/:ticketId/attachments` must exist in the backend with type, size, and count validation. Ticket Detail or Create Ticket must include a real file picker and upload UI. tests.md and ui-spec.md must not mark AC-07 as passed until upload is actually tested.
+
+My response:
+
+> I added the real backend upload endpoint for ticket attachments with requester ownership, allowed file type, 5 MB size, and five-active-file limit validation. I added the Ticket Detail upload picker, client-side validation, upload success/error states, list refresh after upload, and disabled state at the five-file limit. I also updated api-spec.md, ui-spec.md, and tests.md so AC-07 is marked passed only with backend and frontend upload tests.
+
+Resolution:
+
+> Changes completed locally. Waiting for the reviewer to re-check the updated pull request.
+
+Follow-up review and response:
+
+> Repeat removal is now rejected with `409`, so the original removal reason cannot be overwritten. The upload body collector now stops buffering once it reaches a bounded multipart request limit, and API tests cover a file exactly at the 5 MB limit as well as an over-limit file. Replacing the small, scoped parser with a streaming library such as multer is deferred because it is a broader infrastructure change rather than a Lab 2 requirement.
+
+## Pull Requests I Reviewed for My Peer
+
+| Peer repository / pull request | What I checked | My review result |
+| --- | --- | --- |
+| To be added | To be added | To be added |
+
+## Notes
+
+- A review comment is not the same as approval. The reviewer must use the GitHub **Approve** option after checking the pull request.
+- Review evidence, comments, requested changes, and fixes will be kept in this file.

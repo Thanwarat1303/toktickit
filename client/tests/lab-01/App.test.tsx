@@ -6,11 +6,17 @@ import * as api from "../../src/api.js";
 describe("App", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
   });
 
   it("renders the TokTickIT heading", () => {
     render(<App />);
-    expect(screen.getByText(/TokTickIT/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /TokTickIT IT Service Desk/i,
+      })
+    ).toBeInTheDocument();
   });
 
   it("shows Online and the seeded categories on success", async () => {
