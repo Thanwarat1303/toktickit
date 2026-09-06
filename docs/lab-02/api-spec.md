@@ -198,14 +198,17 @@ Success response `200`:
   "summary": "Cannot connect to university Wi-Fi",
   "description": "My laptop cannot connect to the campus Wi-Fi since this morning.",
   "priority": "Medium",
-  "attachments": [],
-  "createdAt": "2026-09-03T10:00:00.000Z"
+  "createdAt": "2026-09-03T10:00:00.000Z",
+  "updatedAt": "2026-09-03T10:00:00.000Z"
 }
 ```
 
 Possible errors:
 
-- `404` when the ticket does not exist or does not belong to the selected requester.
+- `400` when `ticketId` or `X-Requester-Id` is missing or invalid.
+- `403` when the ticket belongs to another requester.
+- `404` when the ticket does not exist.
+- `500` with a safe message when the detail cannot be loaded.
 
 ## 6. Attachment APIs
 
@@ -220,6 +223,32 @@ X-Requester-Id: 1
 ```
 
 Removed attachments remain visible in this response as metadata, with a non-null `removedAt` value.
+
+Success response `200`:
+
+```json
+[
+  {
+    "id": 1,
+    "ticketId": 1,
+    "originalFilename": "network-error.png",
+    "mimeType": "image/png",
+    "sizeBytes": 2048,
+    "createdAt": "2026-09-03T10:05:00.000Z",
+    "removedAt": null,
+    "removalReason": null
+  }
+]
+```
+
+The response must not expose the internal stored filename or server file path.
+
+Possible errors:
+
+- `400` when `ticketId` or `X-Requester-Id` is missing or invalid.
+- `403` when the ticket belongs to another requester.
+- `404` when the ticket does not exist.
+- `500` with a safe message when the attachment list cannot be loaded.
 
 ### POST /api/tickets/:ticketId/attachments
 
@@ -242,6 +271,26 @@ Downloads an active attachment only when its ticket belongs to the selected requ
 
 The API must reject download when the attachment has been soft-removed.
 
+Request identity:
+
+```text
+X-Requester-Id: 1
+```
+
+For browser download links, the requester id may also be sent as a query string:
+
+```text
+GET /api/attachments/1/download?requesterId=1
+```
+
+Possible errors:
+
+- `400` when `attachmentId` or requester identity is missing or invalid.
+- `403` when the attachment belongs to another requester.
+- `404` when the attachment metadata or physical file cannot be found.
+- `410` when the attachment has been soft-removed.
+- `500` with a safe message when the file cannot be downloaded.
+
 ### DELETE /api/attachments/:attachmentId
 
 Soft-removes an active attachment only when its ticket belongs to the selected requester.
@@ -262,6 +311,28 @@ Request body:
 ```
 
 The API must keep the attachment metadata, set `removedAt`, save the removal reason, and block all future download or preview requests for that attachment.
+
+Success response `200` returns the public metadata for the removed attachment:
+
+```json
+{
+  "id": 1,
+  "ticketId": 1,
+  "originalFilename": "network-error.png",
+  "mimeType": "image/png",
+  "sizeBytes": 2048,
+  "createdAt": "2026-09-03T10:05:00.000Z",
+  "removedAt": "2026-09-03T10:10:00.000Z",
+  "removalReason": "Uploaded the wrong file"
+}
+```
+
+Possible errors:
+
+- `400` when `attachmentId`, `X-Requester-Id`, or `removalReason` is missing or invalid.
+- `403` when the attachment belongs to another requester.
+- `404` when the attachment does not exist.
+- `500` with a safe message when the attachment cannot be removed.
 ## 7. Error Response Format
 
 Validation and safe application errors use this format:

@@ -7,6 +7,7 @@ import {
 import RequesterSelector from "./RequesterSelector.js";
 import CreateTicketForm from "./CreateTicketForm.js";
 import MyTickets from "./MyTickets.js";
+import TicketDetail from "./TicketDetail.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 const REQUESTER_STORAGE_KEY = "toktickit.developmentRequester";
@@ -33,6 +34,7 @@ export default function App() {
     loadSavedRequester
   );
   const [view, setView] = useState<"create" | "tickets">("create");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
 
   function handleRequesterSelect(selectedRequester: Requester) {
     localStorage.setItem(
@@ -47,6 +49,7 @@ export default function App() {
     localStorage.removeItem(REQUESTER_STORAGE_KEY);
     setRequester(null);
     setView("create");
+    setSelectedTicketId(null);
   }
 
   async function handleCheck() {
@@ -120,10 +123,20 @@ export default function App() {
               </button>
             </section>
             <nav className="app-nav" aria-label="Ticket views">
-              <button className={view === "create" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => setView("create")}>New Ticket</button>
+              <button className={view === "create" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => { setView("create"); setSelectedTicketId(null); }}>New Ticket</button>
               <button className={view === "tickets" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => setView("tickets")}>My Tickets</button>
             </nav>
-            {view === "create" ? <CreateTicketForm requester={requester} /> : <MyTickets requester={requester} />}
+            {view === "create" ? (
+              <CreateTicketForm requester={requester} />
+            ) : selectedTicketId ? (
+              <TicketDetail
+                requester={requester}
+                ticketId={selectedTicketId}
+                onBack={() => setSelectedTicketId(null)}
+              />
+            ) : (
+              <MyTickets requester={requester} onOpenTicket={setSelectedTicketId} />
+            )}
           </>
         )}
 

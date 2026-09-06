@@ -27,7 +27,7 @@ For each Lab 2 feature:
 | #14 | `feature/14-create-ticket-api` | To be added | mxckiexz | Implementation complete; awaiting PR |
 | #15 | `feature/15-create-ticket-ui` | To be added | To be added | Implementation complete; awaiting PR |
 | #16 | `feature/16-my-tickets` | To be added | mxckiexz | Implementation complete; awaiting PR |
-| #17 | `feature/17-ticket-detail-attachments` | To be added | To be added | Not started |
+| #17 | `feature/17-ticket-detail-attachments` | To be added | mxckiexz | Implementation in progress |
 | #18 | `feature/18-final-testing-release` | To be added | To be added | Not started |
 
 ## Reviewer Comments and My Responses
@@ -81,6 +81,22 @@ My response:
 Resolution:
 
 > The busy-state evidence is now covered by an automated test. Attachment implementation remains planned for Issue #17 before final PDF evidence is collected.
+
+### Issue #17 — Ticket Detail and Attachments
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> To be added after peer review.
+
+My response:
+
+> I implemented the Ticket Detail screen, ownership-scoped ticket detail API, attachment metadata list, attachment download, and attachment soft removal with a required removal reason. Removed attachments keep their metadata and cannot be downloaded again.
+
+Resolution:
+
+> Implementation is complete locally. Waiting for pull request review.
 
 ## Pull Requests I Reviewed for My Peer
 

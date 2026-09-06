@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { Prisma, Priority } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { getPrisma } from "./prisma.js";
 import { generateTicketNumber } from "./ticket-number.js";
 
@@ -114,6 +116,10 @@ function positiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+function formatPriority(priority: Priority) {
+  return priority[0] + priority.slice(1).toLowerCase();
+}
+
 function createTicketResponse(ticket: {
   id: number;
   ticketNumber: string;
@@ -135,7 +141,7 @@ function createTicketResponse(ticket: {
     relatedSystemId: ticket.relatedSystemId,
     summary: ticket.summary,
     description: ticket.description,
-    priority: ticket.priority[0] + ticket.priority.slice(1).toLowerCase(),
+    priority: formatPriority(ticket.priority),
     createdAt: ticket.createdAt,
   };
 }
@@ -150,6 +156,33 @@ function queryPositiveInteger(value: unknown): number | undefined {
 
   const parsed = Number(text);
   return positiveInteger(parsed) ? parsed : undefined;
+}
+
+function requesterIdFromHeader(req: Request): number | undefined {
+  const requesterId = Number(req.header("X-Requester-Id"));
+  return positiveInteger(requesterId) ? requesterId : undefined;
+}
+
+function attachmentResponse(attachment: {
+  id: number;
+  ticketId: number;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: Date;
+  removedAt: Date | null;
+  removalReason: string | null;
+}) {
+  return {
+    id: attachment.id,
+    ticketId: attachment.ticketId,
+    originalFilename: attachment.originalFilename,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    createdAt: attachment.createdAt,
+    removedAt: attachment.removedAt,
+    removalReason: attachment.removalReason,
+  };
 }
 
 app.post("/api/tickets", async (req: Request, res: Response) => {
@@ -372,7 +405,7 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
         id: ticket.id,
         ticketNumber: ticket.ticketNumber,
         summary: ticket.summary,
-        priority: ticket.priority[0] + ticket.priority.slice(1).toLowerCase(),
+        priority: formatPriority(ticket.priority),
         status: ticket.currentStatus,
         category: ticket.category,
         relatedSystem: ticket.relatedSystem,
@@ -385,6 +418,206 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
     });
   } catch {
     return res.status(500).json({ message: "Unable to load tickets" });
+  }
+});
+
+// Lab 2, Issue 17 - Ticket detail and attachment inspection
+app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
+  const requesterId = requesterIdFromHeader(req);
+  const ticketId = Number(req.params.ticketId);
+
+  if (!requesterId) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  if (!positiveInteger(ticketId)) {
+    return res.status(400).json({ message: "A valid ticket id is required" });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        requester: { select: { id: true, name: true, email: true } },
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket was not found" });
+    }
+
+    if (ticket.requesterId !== requesterId) {
+      return res.status(403).json({ message: "You can only view your own tickets" });
+    }
+
+    return res.status(200).json({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      requester: ticket.requester,
+      category: ticket.category,
+      relatedSystem: ticket.relatedSystem,
+      summary: ticket.summary,
+      description: ticket.description,
+      priority: formatPriority(ticket.priority),
+      status: ticket.currentStatus,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+    });
+  } catch {
+    return res.status(500).json({ message: "Unable to load ticket details" });
+  }
+});
+
+app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+  const requesterId = requesterIdFromHeader(req);
+  const ticketId = Number(req.params.ticketId);
+
+  if (!requesterId) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  if (!positiveInteger(ticketId)) {
+    return res.status(400).json({ message: "A valid ticket id is required" });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { requesterId: true },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket was not found" });
+    }
+
+    if (ticket.requesterId !== requesterId) {
+      return res.status(403).json({ message: "You can only view attachments for your own tickets" });
+    }
+
+    const attachments = await prisma.attachment.findMany({
+      where: { ticketId },
+      select: {
+        id: true,
+        ticketId: true,
+        originalFilename: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        removedAt: true,
+        removalReason: true,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+
+    return res.status(200).json(attachments.map(attachmentResponse));
+  } catch {
+    return res.status(500).json({ message: "Unable to load attachments" });
+  }
+});
+
+app.get("/api/attachments/:attachmentId/download", async (req: Request, res: Response) => {
+  const requesterId = requesterIdFromHeader(req) ?? queryPositiveInteger(req.query.requesterId);
+  const attachmentId = Number(req.params.attachmentId);
+
+  if (!requesterId) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  if (!positiveInteger(attachmentId)) {
+    return res.status(400).json({ message: "A valid attachment id is required" });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { ticket: { select: { requesterId: true } } },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment was not found" });
+    }
+
+    if (attachment.ticket.requesterId !== requesterId) {
+      return res.status(403).json({ message: "You can only download your own attachments" });
+    }
+
+    if (attachment.removedAt) {
+      return res.status(410).json({ message: "This attachment has been removed" });
+    }
+
+    const uploadRoot = path.resolve(process.cwd(), "uploads");
+    const filePath = path.resolve(uploadRoot, attachment.storedFilename);
+
+    if (!filePath.startsWith(uploadRoot) || !existsSync(filePath)) {
+      return res.status(404).json({ message: "Attachment file was not found" });
+    }
+
+    res.setHeader("Content-Type", attachment.mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${attachment.originalFilename.replaceAll('"', "")}"`);
+    return res.sendFile(filePath);
+  } catch {
+    return res.status(500).json({ message: "Unable to download attachment" });
+  }
+});
+
+app.delete("/api/attachments/:attachmentId", async (req: Request, res: Response) => {
+  const requesterId = requesterIdFromHeader(req);
+  const attachmentId = Number(req.params.attachmentId);
+  const removalReason = typeof req.body?.removalReason === "string" ? req.body.removalReason.trim() : "";
+
+  if (!requesterId) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  if (!positiveInteger(attachmentId)) {
+    return res.status(400).json({ message: "A valid attachment id is required" });
+  }
+
+  if (!removalReason) {
+    return res.status(400).json({ message: "A removal reason is required" });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { ticket: { select: { requesterId: true } } },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment was not found" });
+    }
+
+    if (attachment.ticket.requesterId !== requesterId) {
+      return res.status(403).json({ message: "You can only remove your own attachments" });
+    }
+
+    const updatedAttachment = await prisma.attachment.update({
+      where: { id: attachmentId },
+      data: {
+        removedAt: attachment.removedAt ?? new Date(),
+        removalReason,
+      },
+      select: {
+        id: true,
+        ticketId: true,
+        originalFilename: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        removedAt: true,
+        removalReason: true,
+      },
+    });
+
+    return res.status(200).json(attachmentResponse(updatedAttachment));
+  } catch {
+    return res.status(500).json({ message: "Unable to remove attachment" });
   }
 });
 

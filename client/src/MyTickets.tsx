@@ -14,9 +14,10 @@ type SortValue = "createdAt-desc" | "createdAt-asc" | "summary-asc" | "summary-d
 
 interface MyTicketsProps {
   requester: Requester;
+  onOpenTicket: (ticketId: number) => void;
 }
 
-export default function MyTickets({ requester }: MyTicketsProps) {
+export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [relatedSystemId, setRelatedSystemId] = useState("");
@@ -151,7 +152,15 @@ export default function MyTickets({ requester }: MyTicketsProps) {
               <thead><tr><th>Ticket</th><th>Summary</th><th>Category</th><th>System</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead>
               <tbody>{data.items.map((ticket) => (
                 <tr key={ticket.id}>
-                  <td><code>{ticket.ticketNumber}</code></td><td>{ticket.summary}</td><td>{ticket.category.name}</td><td>{ticket.relatedSystem.name}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="ticket-link"
+                      onClick={() => onOpenTicket(ticket.id)}
+                    >
+                      {ticket.ticketNumber}
+                    </button>
+                  </td><td>{ticket.summary}</td><td>{ticket.category.name}</td><td>{ticket.relatedSystem.name}</td>
                   <td><span className={`priority-badge priority-badge--${ticket.priority.toLowerCase()}`}>{ticket.priority}</span></td>
                   <td><span className="status-badge">{ticket.status}</span></td><td>{new Date(ticket.createdAt).toLocaleString()}</td>
                 </tr>
