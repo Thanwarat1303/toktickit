@@ -27,7 +27,7 @@ For each Lab 2 feature:
 | #14 | `feature/14-create-ticket-api` | To be added | mxckiexz | Implementation complete; awaiting PR |
 | #15 | `feature/15-create-ticket-ui` | To be added | To be added | Implementation complete; awaiting PR |
 | #16 | `feature/16-my-tickets` | To be added | mxckiexz | Implementation complete; awaiting PR |
-| #17 | `feature/17-ticket-detail-attachments` | To be added | To be added | Not started |
+| #17 | `feature/17-ticket-detail-attachments` | To be added | mxckiexz | Implementation in progress |
 | #18 | `feature/18-final-testing-release` | To be added | To be added | Not started |
 
 ## Reviewer Comments and My Responses
@@ -81,6 +81,26 @@ My response:
 Resolution:
 
 > The busy-state evidence is now covered by an automated test. Attachment implementation remains planned for Issue #17 before final PDF evidence is collected.
+
+### Issue #17 — Ticket Detail and Attachments
+
+Reviewer: mxckiexz
+
+Reviewer comment:
+
+> POST `/api/tickets/:ticketId/attachments` must exist in the backend with type, size, and count validation. Ticket Detail or Create Ticket must include a real file picker and upload UI. tests.md and ui-spec.md must not mark AC-07 as passed until upload is actually tested.
+
+My response:
+
+> I added the real backend upload endpoint for ticket attachments with requester ownership, allowed file type, 5 MB size, and five-active-file limit validation. I added the Ticket Detail upload picker, client-side validation, upload success/error states, list refresh after upload, and disabled state at the five-file limit. I also updated api-spec.md, ui-spec.md, and tests.md so AC-07 is marked passed only with backend and frontend upload tests.
+
+Resolution:
+
+> Changes completed locally. Waiting for the reviewer to re-check the updated pull request.
+
+Follow-up review and response:
+
+> Repeat removal is now rejected with `409`, so the original removal reason cannot be overwritten. The upload body collector now stops buffering once it reaches a bounded multipart request limit, and API tests cover a file exactly at the 5 MB limit as well as an over-limit file. Replacing the small, scoped parser with a streaming library such as multer is deferred because it is a broader infrastructure change rather than a Lab 2 requirement.
 
 ## Pull Requests I Reviewed for My Peer
 

@@ -21,13 +21,14 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | API-03B | API Boundary | AC-03, BR-04 | Summary and description length limits | Accepts 100-character summaries and 2,000-character descriptions; rejects 101-character summaries and 2,001-character descriptions with `400` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-04 | API | AC-04 | Active reference validation | Rejects inactive references with `400` and missing references with `404` | `server/tests/lab-02/create-ticket.api.test.ts` | Passed |
 | API-05 | API | AC-05 | My Tickets query behaviour | Returns requester-owned tickets newest-first by default, supports search and combined filters, and rejects invalid requester or paging input | `server/tests/lab-02/my-tickets.api.test.ts` | Passed |
-| API-06 | API | AC-06 | Ticket ownership | Rejects another requester trying to read ticket detail | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
-| API-07 | API | AC-07 | Attachment upload | Accepts allowed files within size and active-count limits | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-08 | API | AC-08 | Attachment soft removal | Stores `removedAt` and removal reason, retains metadata, and blocks download | `server/tests/lab-02/attachments.api.test.ts` | Planned |
+| API-06 | API | AC-06 | Ticket detail ownership | Returns a ticket detail only for the owner and rejects another requester with `403` | `server/tests/lab-02/ticket-detail-attachments.api.test.ts` | Passed |
+| API-07 | API | AC-07, BR-08, BR-09 | Attachment upload validation | Uploads permitted files for the ticket owner, accepts a file exactly 5 MB, and rejects unsupported type, over-size, over-count, and non-owner upload attempts | `server/tests/lab-02/ticket-detail-attachments.api.test.ts` | Passed |
+| API-07B | API | AC-07 | Attachment inspection and download | Lists public attachment metadata and downloads active files only for the ticket owner | `server/tests/lab-02/ticket-detail-attachments.api.test.ts` | Passed |
+| API-08 | API | AC-08 | Attachment soft removal | Stores `removedAt` and removal reason once, retains metadata, rejects repeat removal with `409`, and blocks download with `410` | `server/tests/lab-02/ticket-detail-attachments.api.test.ts` | Passed |
 | UI-01 | UI Component | AC-01 | Development Requester selector | Displays active requesters and saves the selected requester | `client/tests/lab-02/RequesterSelector.test.tsx` | Passed |
 | UI-02 | UI Component | AC-02, AC-03 | Create Ticket form and validation | Loads active reference data, shows field messages without calling the API when invalid, submits the selected requester, shows a disabled `Submitting...` state while waiting, and keeps data after an API error | `client/tests/lab-02/CreateTicket.test.tsx` | Passed |
 | UI-03 | UI Component | AC-05 | My Tickets screen | Displays a requester-owned ticket list, filter controls, and a helpful empty state | `client/tests/lab-02/MyTickets.test.tsx` | Passed |
-| UI-04 | UI Component | AC-08 | Attachment section | Shows active and removed attachment states and confirms removal reason | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
+| UI-04 | UI Component | AC-06, AC-07, AC-08 | Ticket Detail and attachment section | Opens a ticket detail screen, uploads a selected attachment, blocks unsupported files, disables upload at five active attachments, shows active and removed attachment states, provides download links, and confirms removal reason before soft removal | `client/tests/lab-02/TicketDetail.test.tsx` | Passed |
 | STYLE-01 | UI Style | AC-09 | Zen Green design tokens | Uses the documented design tokens, required labels, field-level validation placement, and a busy submit state | `client/tests/lab-02/CreateTicket.test.tsx` | Passed |
 | RESPONSIVE-01 | Responsive | AC-09 | Responsive layouts | Checks desktop, tablet, and mobile screenshots for clipping or overflow | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-01 | End-to-end | AC-02, AC-05, AC-06 | Requester ticket flow | Requester A creates and finds a ticket; Requester B cannot access it | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
@@ -43,8 +44,8 @@ Lab 2 uses unit, API/integration, UI component, UI style, responsive, and end-to
 | AC-03 — Ticket Validation | API-03, API-03B, UI-02 | Passing tests and validation-message screenshot |
 | AC-04 — Active Reference Validation | DB-01, API-04 | Seed-data test and passing API test output |
 | AC-05 — Requester-Owned Ticket List | API-05, UI-03, E2E-01 | My Tickets screenshot with search, filters, sorting, and pagination |
-| AC-06 — Ownership Protection | API-06, E2E-01 | Passing API test and cross-requester access evidence |
-| AC-07 — Upload Attachment | API-07, E2E-02 | Passing test and uploaded attachment screenshot |
+| AC-06 — Ownership Protection | API-06, UI-04, E2E-01 | Passing API test, Ticket Detail screenshot, and cross-requester access evidence |
+| AC-07 — Upload/View/Download Attachment | API-07, API-07B, UI-04, E2E-02 | Upload test output, attachment metadata list, download link, and uploaded attachment screenshot |
 | AC-08 — Soft-Remove Attachment | API-08, UI-04, E2E-02 | Removed metadata, removal reason, and blocked-download evidence |
 | AC-09 — Responsive Zen Green UI | STYLE-01, RESPONSIVE-01 | Desktop, tablet, and mobile screenshots plus visual checklist |
 
@@ -120,6 +121,14 @@ Issue #15 verification results:
 - UI-02 verifies client-side required-field validation, successful submission using the selected requester, a disabled `Submitting...` state while the API request is pending, and preserving entered data after an API error.
 - STYLE-01 verifies the Create Ticket form uses the documented Zen Green UI classes, field labels, error placement, and the busy submit state covered by UI-02.
 - The form reads active categories and related systems, while the backend also validates those values before creating a ticket.
+
+Issue #17 verification results:
+
+- API-06 verifies that a requester can open their own ticket detail and that another requester receives `403`.
+- API-07 verifies that the owner can upload allowed attachments at or below the 5 MB limit and that unsupported type, over-size, over-count, and non-owner upload attempts are rejected.
+- API-07B verifies that attachment metadata is public-safe, active attachments can be downloaded by the owner, and another requester cannot download them.
+- API-08 verifies soft removal by saving `removedAt` and `removalReason` once, keeping the metadata row, rejecting repeat removal with `409`, and blocking future downloads with `410`.
+- UI-04 verifies the Ticket Detail screen, attachment upload picker, successful upload refresh, unsupported-file validation, five-file disabled state, attachment list, download link, soft-remove prompt, removed state, and Back navigation from detail to My Tickets.
 
 Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
 

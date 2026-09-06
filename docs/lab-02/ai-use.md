@@ -121,3 +121,17 @@ AI helped organize the React form into loading, validation, submitting, failure,
 ### My Own Decision and Verification
 
 I kept the backend as the final authority for validation and used client-side validation only to give faster feedback. I kept the selected requester read-only in the form because it comes from the Development Requester selector. I will run the frontend and backend tests, build both projects, and manually create a ticket before opening the pull request.
+
+## Record 8 — Ticket Detail and Attachments
+
+### Prompt
+
+> Help me implement Issue #17: a Ticket Detail screen with requester-owned access, public attachment metadata, attachment download, soft removal with a reason, and tests.
+
+### How AI Helped
+
+AI helped separate the feature into backend ownership checks, safe attachment metadata responses, file download handling, soft-removal behaviour, a React Ticket Detail view, and automated tests.
+
+### My Own Decision and Verification
+
+I kept attachment metadata visible after removal because the lab requires soft removal instead of hard deletion. I also made sure the list response does not expose internal stored filenames or file paths. I will verify the feature with backend API tests, frontend component tests, TypeScript builds, and manual browser evidence before opening the pull request.

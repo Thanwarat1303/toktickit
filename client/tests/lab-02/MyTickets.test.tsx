@@ -22,7 +22,7 @@ describe("My Tickets", () => {
 
   it("loads the active requester's ticket list", async () => {
     mockTickets();
-    render(<MyTickets requester={requester} />);
+    render(<MyTickets requester={requester} onOpenTicket={vi.fn()} />);
 
     expect(await screen.findByText("Wi-Fi is unavailable")).toBeInTheDocument();
     expect(api.getTickets).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 1, page: 1 }));
@@ -30,7 +30,7 @@ describe("My Tickets", () => {
 
   it("resets to page one when a filter changes", async () => {
     mockTickets();
-    render(<MyTickets requester={requester} />);
+    render(<MyTickets requester={requester} onOpenTicket={vi.fn()} />);
 
     await screen.findByText("Wi-Fi is unavailable");
     fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "High" } });
@@ -42,8 +42,18 @@ describe("My Tickets", () => {
     vi.spyOn(api, "getCategories").mockResolvedValue([]);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
     vi.spyOn(api, "getTickets").mockResolvedValue({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 1 });
-    render(<MyTickets requester={requester} />);
+    render(<MyTickets requester={requester} onOpenTicket={vi.fn()} />);
 
     expect(await screen.findByText("No tickets yet")).toBeInTheDocument();
+  });
+
+  it("opens the ticket detail view when the ticket number is clicked", async () => {
+    const onOpenTicket = vi.fn();
+    mockTickets();
+    render(<MyTickets requester={requester} onOpenTicket={onOpenTicket} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "TK-000001" }));
+
+    expect(onOpenTicket).toHaveBeenCalledWith(1);
   });
 });
