@@ -94,6 +94,20 @@ AI was useful for explaining unfamiliar concepts and organizing my work. However
 
 I will update this file when AI is used again for later Lab 2 tasks, including database design, API implementation, frontend implementation, debugging, and testing.
 
+## Record 7 — My Tickets List
+
+### Prompt
+
+> Help me implement Issue #16: My Tickets. The selected requester must only see their own tickets, with search, filters, sorting, pagination, loading and empty states, and tests.
+
+### How AI Helped
+
+AI helped split the work into a requester-scoped `GET /api/tickets` route, typed client API calls, and a React list view with filters and pagination.
+
+### My Own Decision and Verification
+
+I kept `X-Requester-Id` as the temporary local-development identity and made it mandatory on the list endpoint, so changing filters cannot reveal another requester's tickets. I chose ten tickets per page and a maximum page size of fifty. I will run server and client tests, build both applications, and manually check the list, filters, empty state, and pagination before opening the pull request.
+
 ## Record 6 — Create Ticket UI
 
 ### Prompt

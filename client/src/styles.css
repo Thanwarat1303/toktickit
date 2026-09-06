@@ -207,6 +207,67 @@ body {
   border-left: 5px solid var(--zen-secondary);
 }
 
+.app-nav {
+  display: flex;
+  gap: 0.35rem;
+  width: fit-content;
+  margin: 1.35rem 0 1rem;
+  padding: 0.35rem;
+  border: 1px solid var(--zen-border);
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.app-nav__tab {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0.6rem;
+  color: var(--zen-muted);
+  background: transparent;
+  font-weight: 700;
+}
+
+.app-nav__tab.active {
+  color: #fff;
+  background: var(--zen-primary);
+}
+
+.ticket-list-card {
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--zen-border);
+  border-radius: 1.35rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 55px rgba(25, 64, 52, 0.09);
+}
+
+.ticket-count,
+.status-badge,
+.priority-badge {
+  display: inline-block;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ticket-count,
+.status-badge { color: var(--zen-primary); background: var(--zen-pale); }
+.priority-badge--low { color: #456c59; background: #e8f0ea; }
+.priority-badge--medium { color: #7a5700; background: #fff2c6; }
+.priority-badge--high { color: #8a2634; background: #fde8ea; }
+
+.ticket-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ticket-filters label { display: grid; gap: 0.35rem; font-size: 0.83rem; font-weight: 700; }
+.ticket-table th { color: var(--zen-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.ticket-table code { color: var(--zen-primary); font-weight: 800; }
+.ticket-pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.empty-state { padding: 2.2rem 1rem; border: 1px dashed var(--zen-border); border-radius: 1rem; color: var(--zen-muted); text-align: center; }
+
 .requester-chip {
   display: flex;
   align-items: center;
@@ -271,4 +332,7 @@ body {
   .state-panel--error .btn {
     width: 100%;
   }
+
+  .ticket-filters { grid-template-columns: 1fr; }
+  .ticket-pagination { align-items: stretch; flex-direction: column; }
 }
