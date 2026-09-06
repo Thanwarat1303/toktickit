@@ -14,9 +14,12 @@ const fileBytes = Buffer.from("TokTickIT attachment download test");
 
 let ownerId: number;
 let otherRequesterId: number;
+let categoryId: number;
+let relatedSystemId: number;
 let ticketId: number;
 let attachmentId: number;
 let removedAttachmentId: number;
+let createdTicketIds: number[] = [];
 
 beforeAll(async () => {
   const [owner, other, category, relatedSystem] = await Promise.all([
@@ -28,6 +31,8 @@ beforeAll(async () => {
 
   ownerId = owner.id;
   otherRequesterId = other.id === owner.id ? owner.id + 1000 : other.id;
+  categoryId = category.id;
+  relatedSystemId = relatedSystem.id;
 
   const ticket = await prisma.ticket.create({
     data: {
@@ -42,6 +47,7 @@ beforeAll(async () => {
     },
   });
   ticketId = ticket.id;
+  createdTicketIds = [ticketId];
 
   mkdirSync(uploadDir, { recursive: true });
   writeFileSync(path.join(uploadDir, storedFilename), fileBytes);
@@ -72,19 +78,44 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.attachment.deleteMany({ where: { ticketId } });
-  await prisma.ticket.deleteMany({ where: { id: ticketId } });
+  const attachments = await prisma.attachment.findMany({
+    where: { ticketId: { in: createdTicketIds } },
+    select: { storedFilename: true },
+  });
 
-  try {
-    unlinkSync(path.join(uploadDir, storedFilename));
-  } catch {
-    // Test cleanup should not fail if the file was already removed manually.
+  await prisma.attachment.deleteMany({ where: { ticketId: { in: createdTicketIds } } });
+  await prisma.ticket.deleteMany({ where: { id: { in: createdTicketIds } } });
+
+  for (const attachment of attachments) {
+    try {
+      unlinkSync(path.join(uploadDir, attachment.storedFilename));
+    } catch {
+      // Test cleanup should not fail if the file was already removed manually.
+    }
   }
 
   await prisma.$disconnect();
 });
 
 describe("Ticket detail and attachments", () => {
+  async function createOwnedTicket(summary: string) {
+    const ticket = await prisma.ticket.create({
+      data: {
+        ticketNumber: `TK-F17-${Date.now()}-${createdTicketIds.length}`,
+        requesterId: ownerId,
+        categoryId,
+        relatedSystemId,
+        summary,
+        description: "Created only for ticket attachment upload tests.",
+        priority: Priority.MEDIUM,
+        currentStatus: "New",
+      },
+    });
+
+    createdTicketIds.push(ticket.id);
+    return ticket.id;
+  }
+
   it("returns one ticket detail only for the owner", async () => {
     const ownerResponse = await request(app)
       .get(`/api/tickets/${ticketId}`)
@@ -101,6 +132,97 @@ describe("Ticket detail and attachments", () => {
       status: "New",
     });
     expect(otherResponse.status).toBe(403);
+  });
+
+  it("uploads a permitted attachment for the ticket owner", async () => {
+    const validFileBytes = Buffer.from("%PDF-1.4 TokTickIT evidence");
+
+    const response = await request(app)
+      .post(`/api/tickets/${ticketId}/attachments`)
+      .set("X-Requester-Id", String(ownerId))
+      .attach("file", validFileBytes, {
+        filename: "valid-evidence.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      ticketId,
+      originalFilename: "valid-evidence.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: validFileBytes.length,
+      removedAt: null,
+      removalReason: null,
+    });
+    expect(response.body).not.toHaveProperty("storedFilename");
+  });
+
+  it("rejects unsupported attachment types", async () => {
+    const ticketForUpload = await createOwnedTicket(`${marker} unsupported type`);
+    const beforeCount = await prisma.attachment.count({ where: { ticketId: ticketForUpload } });
+
+    const response = await request(app)
+      .post(`/api/tickets/${ticketForUpload}/attachments`)
+      .set("X-Requester-Id", String(ownerId))
+      .attach("file", Buffer.from("not allowed"), {
+        filename: "script.exe",
+        contentType: "application/x-msdownload",
+      });
+
+    const afterCount = await prisma.attachment.count({ where: { ticketId: ticketForUpload } });
+
+    expect(response.status).toBe(415);
+    expect(afterCount).toBe(beforeCount);
+  });
+
+  it("rejects attachments larger than 5 MB", async () => {
+    const ticketForUpload = await createOwnedTicket(`${marker} oversized upload`);
+
+    const response = await request(app)
+      .post(`/api/tickets/${ticketForUpload}/attachments`)
+      .set("X-Requester-Id", String(ownerId))
+      .attach("file", Buffer.alloc(5 * 1024 * 1024 + 1, "a"), {
+        filename: "too-large.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(413);
+  });
+
+  it("rejects a sixth active attachment", async () => {
+    const ticketForUpload = await createOwnedTicket(`${marker} attachment count limit`);
+
+    await prisma.attachment.createMany({
+      data: Array.from({ length: 5 }, (_, index) => ({
+        ticketId: ticketForUpload,
+        originalFilename: `existing-${index}.pdf`,
+        storedFilename: `feature-17-limit-${ticketForUpload}-${index}.pdf`,
+        mimeType: "application/pdf",
+        sizeBytes: 10,
+      })),
+    });
+
+    const response = await request(app)
+      .post(`/api/tickets/${ticketForUpload}/attachments`)
+      .set("X-Requester-Id", String(ownerId))
+      .attach("file", Buffer.from("%PDF-1.4 sixth"), {
+        filename: "sixth.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(409);
+  });
+
+  it("rejects attachment upload from another requester", async () => {
+    const response = await request(app)
+      .post(`/api/tickets/${ticketId}/attachments`)
+      .set("X-Requester-Id", String(otherRequesterId))
+      .attach("file", Buffer.from("%PDF-1.4 wrong owner"), {
+        filename: "wrong-owner.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(403);
   });
 
   it("lists public attachment metadata without exposing stored filenames", async () => {

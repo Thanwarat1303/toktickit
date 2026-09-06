@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import {
   ApiRequestError,
   attachmentDownloadUrl,
   getTicketAttachments,
   getTicketDetail,
   removeAttachment,
+  uploadTicketAttachment,
   type AttachmentSummary,
   type Requester,
   type TicketDetail as TicketDetailData,
@@ -22,6 +23,15 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const allowedAttachmentTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+const maxAttachmentBytes = 5 * 1024 * 1024;
+const maxActiveAttachments = 5;
+
 export default function TicketDetail({ requester, ticketId, onBack }: TicketDetailProps) {
   const [ticket, setTicket] = useState<TicketDetailData | null>(null);
   const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
@@ -30,6 +40,14 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
   const [ticketError, setTicketError] = useState("");
   const [attachmentError, setAttachmentError] = useState("");
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
+
+  const activeAttachmentCount = attachments.filter((attachment) => !attachment.removedAt).length;
+  const attachmentLimitReached = activeAttachmentCount >= maxActiveAttachments;
 
   async function loadAttachments() {
     setLoadingAttachments(true);
@@ -115,6 +133,50 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     }
   }
 
+  async function handleUploadAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadError("");
+    setUploadSuccess("");
+
+    if (attachmentLimitReached) {
+      setUploadError("This ticket already has five active attachments.");
+      return;
+    }
+
+    if (!selectedFile) {
+      setUploadError("Choose a file before uploading.");
+      return;
+    }
+
+    if (!allowedAttachmentTypes.has(selectedFile.type)) {
+      setUploadError("Unsupported file type. Use JPG, PNG, WEBP, or PDF.");
+      return;
+    }
+
+    if (selectedFile.size > maxAttachmentBytes) {
+      setUploadError("Attachment must not exceed 5 MB.");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      await uploadTicketAttachment(ticketId, requester.id, selectedFile);
+      setSelectedFile(null);
+      setFileInputKey((currentKey) => currentKey + 1);
+      setUploadSuccess("Attachment uploaded successfully.");
+      await loadAttachments();
+    } catch (caught) {
+      setUploadError(
+        caught instanceof ApiRequestError
+          ? caught.message
+          : "Unable to upload the attachment."
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <section className="ticket-detail-card" aria-labelledby="ticket-detail-heading">
       <button type="button" className="btn btn-outline-zen mb-4" onClick={onBack}>
@@ -180,6 +242,54 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
           <div role="alert" className="state-panel state-panel--error">
             {attachmentError}
           </div>
+        )}
+
+        {!loadingAttachments && !attachmentError && (
+          <form className="attachment-upload-form" onSubmit={(event) => void handleUploadAttachment(event)}>
+            <div>
+              <label htmlFor="ticket-attachment" className="form-label">
+                Add an attachment ({activeAttachmentCount}/5)
+              </label>
+              <input
+                key={fileInputKey}
+                id="ticket-attachment"
+                className="form-control"
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                disabled={uploading || attachmentLimitReached}
+                onChange={(event) => {
+                  setUploadError("");
+                  setUploadSuccess("");
+                  setSelectedFile(event.target.files?.[0] ?? null);
+                }}
+              />
+              <p className="form-help mb-0">
+                JPG, PNG, WEBP, or PDF only. Maximum 5 MB. Maximum five active attachments per ticket.
+              </p>
+            </div>
+            <button
+              type="submit"
+              className="btn btn-zen"
+              disabled={uploading || attachmentLimitReached}
+            >
+              {uploading ? "Uploading..." : "Upload attachment"}
+            </button>
+            {attachmentLimitReached && (
+              <p className="form-help attachment-upload-form__message mb-0">
+                Attachment limit reached. Remove an active attachment before adding another.
+              </p>
+            )}
+            {uploadError && (
+              <p role="alert" className="field-error attachment-upload-form__message mb-0">
+                {uploadError}
+              </p>
+            )}
+            {uploadSuccess && (
+              <p className="success-message attachment-upload-form__message mb-0">
+                {uploadSuccess}
+              </p>
+            )}
+          </form>
         )}
 
         {!loadingAttachments && !attachmentError && attachments.length === 0 && (

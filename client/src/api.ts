@@ -237,6 +237,29 @@ export async function getTicketAttachments(
   return response.json();
 }
 
+export async function uploadTicketAttachment(
+  ticketId: number,
+  requesterId: number,
+  file: File
+): Promise<AttachmentSummary> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
+    method: "POST",
+    headers: {
+      "X-Requester-Id": String(requesterId),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new ApiRequestError(await getErrorMessage(response, "Unable to upload attachment"));
+  }
+
+  return response.json();
+}
+
 export function attachmentDownloadUrl(attachmentId: number, requesterId: number): string {
   return `${API_URL}/api/attachments/${attachmentId}/download?requesterId=${requesterId}`;
 }

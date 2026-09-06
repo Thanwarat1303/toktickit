@@ -91,6 +91,99 @@ describe("Ticket Detail", () => {
     expect(screen.queryByRole("link", { name: /Download/i })).not.toBeInTheDocument();
   });
 
+  it("uploads a selected attachment and refreshes the attachment list", async () => {
+    const uploadFile = new File(["ticket evidence"], "ticket-evidence.pdf", {
+      type: "application/pdf",
+    });
+    vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);
+    vi.spyOn(api, "getTicketAttachments")
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 6,
+          ticketId: 10,
+          originalFilename: "ticket-evidence.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: uploadFile.size,
+          createdAt: "2026-09-01T12:00:00.000Z",
+          removedAt: null,
+          removalReason: null,
+        },
+      ]);
+    vi.spyOn(api, "uploadTicketAttachment").mockResolvedValue({
+      id: 6,
+      ticketId: 10,
+      originalFilename: "ticket-evidence.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: uploadFile.size,
+      createdAt: "2026-09-01T12:00:00.000Z",
+      removedAt: null,
+      removalReason: null,
+    });
+
+    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+
+    const fileInput = await screen.findByLabelText(/Add an attachment/i);
+    fireEvent.change(fileInput, { target: { files: [uploadFile] } });
+    fireEvent.click(screen.getByRole("button", { name: /Upload attachment/i }));
+
+    await waitFor(() => {
+      expect(api.uploadTicketAttachment).toHaveBeenCalledWith(10, 1, uploadFile);
+    });
+    expect(await screen.findByText("Attachment uploaded successfully.")).toBeInTheDocument();
+    expect(await screen.findByText("ticket-evidence.pdf")).toBeInTheDocument();
+  });
+
+  it("blocks unsupported files before calling the upload API", async () => {
+    const unsupportedFile = new File(["bad"], "malware.exe", {
+      type: "application/x-msdownload",
+    });
+    vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);
+    vi.spyOn(api, "getTicketAttachments").mockResolvedValue([]);
+    const uploadSpy = vi.spyOn(api, "uploadTicketAttachment").mockResolvedValue({
+      id: 6,
+      ticketId: 10,
+      originalFilename: "malware.exe",
+      mimeType: "application/x-msdownload",
+      sizeBytes: unsupportedFile.size,
+      createdAt: "2026-09-01T12:00:00.000Z",
+      removedAt: null,
+      removalReason: null,
+    });
+
+    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+
+    fireEvent.change(await screen.findByLabelText(/Add an attachment/i), {
+      target: { files: [unsupportedFile] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Upload attachment/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Unsupported file type/i);
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  it("disables attachment upload when the ticket already has five active attachments", async () => {
+    vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);
+    vi.spyOn(api, "getTicketAttachments").mockResolvedValue(
+      Array.from({ length: 5 }, (_, index) => ({
+        id: index + 1,
+        ticketId: 10,
+        originalFilename: `evidence-${index + 1}.pdf`,
+        mimeType: "application/pdf",
+        sizeBytes: 1024,
+        createdAt: "2026-09-01T10:05:00.000Z",
+        removedAt: null,
+        removalReason: null,
+      }))
+    );
+
+    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+
+    expect(await screen.findByLabelText(/Add an attachment \(5\/5\)/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Upload attachment/i })).toBeDisabled();
+    expect(screen.getByText(/Attachment limit reached/i)).toBeInTheDocument();
+  });
+
   it("returns to My Tickets when Back is clicked", async () => {
     const onBack = vi.fn();
     vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);

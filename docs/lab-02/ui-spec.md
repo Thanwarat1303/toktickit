@@ -120,13 +120,16 @@ The page should show:
 
 The attachment section should allow the ticket owner to:
 
+- Select and upload one new attachment
+- See the active attachment count out of the five-file limit
+- See a clear validation message for unsupported files, files over 5 MB, or count-limit failures
 - View attachment name, size, and upload date
 - Download an active attachment
 - Start a soft-removal action for an active attachment
 - Enter a required removal reason
 - Confirm the soft-removal action
 
-Uploading a new attachment from an existing ticket detail page is handled in the later attachment-add flow. This page must still display existing attachments correctly and protect all download and soft-removal actions by requester ownership.
+The upload picker must accept only JPG/JPEG, PNG, WEBP, and PDF files. It must be disabled when the ticket already has five active attachments. After a successful upload, the file input clears and the attachment list refreshes from the API so the displayed metadata comes from the backend.
 
 A removed attachment must remain visible as metadata with a clear `Removed` state, removed date, and removal reason. Its download and preview actions must be disabled or hidden.
 

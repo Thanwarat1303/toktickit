@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { Prisma, Priority } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
 import { generateTicketNumber } from "./ticket-number.js";
@@ -111,6 +111,20 @@ const priorityValues: Record<string, Priority> = {
 };
 
 const duplicateWindowMs = 60_000;
+const maxAttachmentSizeBytes = 5 * 1024 * 1024;
+const maxActiveAttachmentsPerTicket = 5;
+const allowedAttachmentMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+interface UploadedMultipartFile {
+  originalFilename: string;
+  mimeType: string;
+  bytes: Buffer;
+}
 
 function positiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
@@ -183,6 +197,62 @@ function attachmentResponse(attachment: {
     removedAt: attachment.removedAt,
     removalReason: attachment.removalReason,
   };
+}
+
+function safeOriginalFilename(filename: string) {
+  const baseName = path.basename(filename).trim();
+  const cleaned = baseName.replace(/[^\w .()-]/g, "_");
+  return cleaned || "attachment";
+}
+
+function multipartBoundary(req: Request) {
+  const contentType = req.header("content-type") ?? "";
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  return boundaryMatch?.[1] ?? boundaryMatch?.[2];
+}
+
+function collectRequestBody(req: Request): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    req.on("data", (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function parseMultipartFile(req: Request, body: Buffer): UploadedMultipartFile | undefined {
+  const boundary = multipartBoundary(req);
+  if (!boundary) return undefined;
+
+  const bodyText = body.toString("latin1");
+  const parts = bodyText.split(`--${boundary}`);
+
+  for (const part of parts) {
+    if (!part.includes('name="file"')) continue;
+
+    const [rawHeaders, ...contentParts] = part.split("\r\n\r\n");
+    if (!rawHeaders || contentParts.length === 0) return undefined;
+
+    const filenameMatch = rawHeaders.match(/filename="([^"]*)"/i);
+    const typeMatch = rawHeaders.match(/content-type:\s*([^\r\n]+)/i);
+    const submittedFilename = filenameMatch?.[1]?.trim() ?? "";
+    if (!submittedFilename) return undefined;
+
+    const originalFilename = safeOriginalFilename(submittedFilename);
+    const mimeType = typeMatch?.[1]?.trim().toLowerCase() ?? "application/octet-stream";
+    const contentText = contentParts.join("\r\n\r\n").replace(/\r\n$/, "");
+
+    return {
+      originalFilename,
+      mimeType,
+      bytes: Buffer.from(contentText, "latin1"),
+    };
+  }
+
+  return undefined;
 }
 
 app.post("/api/tickets", async (req: Request, res: Response) => {
@@ -516,6 +586,92 @@ app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response
     return res.status(200).json(attachments.map(attachmentResponse));
   } catch {
     return res.status(500).json({ message: "Unable to load attachments" });
+  }
+});
+
+app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+  const requesterId = requesterIdFromHeader(req);
+  const ticketId = Number(req.params.ticketId);
+
+  if (!requesterId) {
+    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  }
+
+  if (!positiveInteger(ticketId)) {
+    return res.status(400).json({ message: "A valid ticket id is required" });
+  }
+
+  try {
+    const uploadedFile = parseMultipartFile(req, await collectRequestBody(req));
+
+    if (!uploadedFile || uploadedFile.bytes.length === 0) {
+      return res.status(400).json({ message: "A file is required" });
+    }
+
+    if (!allowedAttachmentMimeTypes.has(uploadedFile.mimeType)) {
+      return res.status(415).json({
+        message: "Unsupported attachment type. Use JPG, PNG, WEBP, or PDF.",
+      });
+    }
+
+    if (uploadedFile.bytes.length > maxAttachmentSizeBytes) {
+      return res.status(413).json({ message: "Attachment must not exceed 5 MB" });
+    }
+
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { requesterId: true },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket was not found" });
+    }
+
+    if (ticket.requesterId !== requesterId) {
+      return res.status(403).json({ message: "You can only upload attachments to your own tickets" });
+    }
+
+    const activeAttachmentCount = await prisma.attachment.count({
+      where: {
+        ticketId,
+        removedAt: null,
+      },
+    });
+
+    if (activeAttachmentCount >= maxActiveAttachmentsPerTicket) {
+      return res.status(409).json({ message: "A ticket can have at most five active attachments" });
+    }
+
+    const uploadRoot = path.resolve(process.cwd(), "uploads");
+    mkdirSync(uploadRoot, { recursive: true });
+
+    const storedFilename = `${randomUUID()}-${uploadedFile.originalFilename}`;
+    writeFileSync(path.join(uploadRoot, storedFilename), uploadedFile.bytes);
+
+    const attachment = await prisma.attachment.create({
+      data: {
+        ticketId,
+        originalFilename: uploadedFile.originalFilename,
+        storedFilename,
+        mimeType: uploadedFile.mimeType,
+        sizeBytes: uploadedFile.bytes.length,
+      },
+      select: {
+        id: true,
+        ticketId: true,
+        originalFilename: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        removedAt: true,
+        removalReason: true,
+      },
+    });
+
+    return res.status(201).json(attachmentResponse(attachment));
+  } catch {
+    return res.status(500).json({ message: "Unable to upload attachment" });
   }
 });
 

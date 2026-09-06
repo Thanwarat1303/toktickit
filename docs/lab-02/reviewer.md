@@ -88,15 +88,15 @@ Reviewer: mxckiexz
 
 Reviewer comment:
 
-> To be added after peer review.
+> POST `/api/tickets/:ticketId/attachments` must exist in the backend with type, size, and count validation. Ticket Detail or Create Ticket must include a real file picker and upload UI. tests.md and ui-spec.md must not mark AC-07 as passed until upload is actually tested.
 
 My response:
 
-> I implemented the Ticket Detail screen, ownership-scoped ticket detail API, attachment metadata list, attachment download, and attachment soft removal with a required removal reason. Removed attachments keep their metadata and cannot be downloaded again.
+> I added the real backend upload endpoint for ticket attachments with requester ownership, allowed file type, 5 MB size, and five-active-file limit validation. I added the Ticket Detail upload picker, client-side validation, upload success/error states, list refresh after upload, and disabled state at the five-file limit. I also updated api-spec.md, ui-spec.md, and tests.md so AC-07 is marked passed only with backend and frontend upload tests.
 
 Resolution:
 
-> Implementation is complete locally. Waiting for pull request review.
+> Changes completed locally. Waiting for the reviewer to re-check the updated pull request.
 
 ## Pull Requests I Reviewed for My Peer
 

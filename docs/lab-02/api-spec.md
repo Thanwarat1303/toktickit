@@ -265,6 +265,31 @@ The uploaded file field name is `file`.
 
 The API accepts JPG/JPEG, PNG, WEBP, and PDF files only. Each file must not be larger than 5 MB, and a ticket can have at most five active attachments.
 
+Success response `201`:
+
+```json
+{
+  "id": 3,
+  "ticketId": 1,
+  "originalFilename": "network-error.png",
+  "mimeType": "image/png",
+  "sizeBytes": 2048,
+  "createdAt": "2026-09-03T10:10:00.000Z",
+  "removedAt": null,
+  "removalReason": null
+}
+```
+
+Possible errors:
+
+- `400` when `ticketId`, `X-Requester-Id`, or the uploaded `file` field is missing or invalid.
+- `403` when the ticket belongs to another requester.
+- `404` when the ticket does not exist.
+- `409` when the ticket already has five active attachments.
+- `413` when the uploaded file is larger than 5 MB.
+- `415` when the uploaded file type is not JPG/JPEG, PNG, WEBP, or PDF.
+- `500` with a safe message when the attachment cannot be stored.
+
 ### GET /api/attachments/:attachmentId/download
 
 Downloads an active attachment only when its ticket belongs to the selected requester.
