@@ -71,6 +71,13 @@ cd server
 npm test
 ```
 
+Backend production build:
+
+```powershell
+cd server
+npm run build
+```
+
 Frontend tests:
 
 ```powershell
@@ -131,6 +138,8 @@ Issue #17 verification results:
 - UI-04 verifies the Ticket Detail screen, attachment upload picker, successful upload refresh, unsupported-file validation, five-file disabled state, attachment list, download link, soft-remove prompt, removed state, and Back navigation from detail to My Tickets.
 
 Final submission evidence must show that all required tests pass and that no required test is skipped, disabled, or commented out.
+
+Issue #18 release verification is recorded in `docs/lab-02/release-checklist.md`. Its command results and manual evidence must be completed before the final release pull request is opened.
 
 ## 7. Known Limitations or Deferred Tests
 
