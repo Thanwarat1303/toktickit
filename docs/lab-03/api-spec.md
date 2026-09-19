@@ -20,7 +20,11 @@ Requires authentication. `204` invalidates the session.
 
 ### `GET /api/auth/me`
 
-Requires authentication. `200` returns the safe current-user object. `401` if no valid session exists.
+Requires authentication. `200` returns the safe current-user object and the current session's CSRF token:
+`{ "user": { "id", "name", "email", "role", "isActive", "mustChangePassword" }, "csrfToken": string }`.
+The token is returned for every valid session, including a session restored after a page reload, so the
+client does not need to log in again just to bootstrap CSRF protection. The client must use this token in
+`X-CSRF-Token` for subsequent state-changing requests. `401` if no valid session exists.
 
 ### `POST /api/auth/change-password`
 
