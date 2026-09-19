@@ -7,6 +7,7 @@ Tests are planned before implementation and must be marked `Pass` only after the
 | API-01 | API Positive | FR-01 / AC-01 | Valid active login | 200, safe user, session cookie | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-02 | API Negative | BR-01 | Invalid credentials | 401 safe error | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-03 | API Negative | BR-13 | Inactive account login | 401 safe error | server/tests/lab-03/auth.api.test.ts | Planned |
+| API-03B | API Security | BR-19 | Repeated failed login attempts | Temporary cooldown after five failures with the same safe 401 | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-04 | API Positive | FR-03 / AC-03 | Current user and logout | Identity returned; logout invalidates session | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-05 | API Positive | FR-02 / AC-02 | First-login password change | Normal access only after valid change | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-06 | API Security | BR-03 / AC-04 | Requester ownership | Client requester ID cannot cross scope | server/tests/lab-03/authorization.api.test.ts | Planned |

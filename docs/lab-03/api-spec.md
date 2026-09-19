@@ -2,7 +2,9 @@
 
 ## General Rules
 
-Base URL: `http://localhost:3000/api`. JSON is used unless an endpoint streams a file. Authentication uses an HTTP-only, same-site session cookie. Protected endpoints return `401` when unauthenticated and `403` when authenticated without permission. Error bodies use `{ "error": { "code": "...", "message": "..." } }` and never expose password hashes or protected resource existence unnecessarily.
+Base URL: `http://localhost:3000/api`. JSON is used unless an endpoint streams a file. Authentication uses an HTTP-only, same-site session cookie with an 8-hour server-enforced expiry. Protected endpoints return `401` when unauthenticated or when the session has expired and `403` when authenticated without permission. Error bodies use `{ "error": { "code": "...", "message": "..." } }` and never expose password hashes or protected resource existence unnecessarily.
+
+For cookie-authenticated state-changing requests (`POST`, `PATCH`, and `DELETE`), the client must send `X-CSRF-Token` containing the per-session CSRF token issued by the authenticated bootstrap/current-user response. The server compares the header token with the session token before changing state. `GET`, `HEAD`, and `OPTIONS` are read-only and do not require the header. Login is exempt because no authenticated session exists yet. Same-site cookies, origin checking where available, and the CSRF header together prevent cross-site state-changing requests.
 
 ## Authentication
 
@@ -10,7 +12,7 @@ Base URL: `http://localhost:3000/api`. JSON is used unless an endpoint streams a
 
 Request: `{ "email": string, "password": string }`.
 
-`200`: `{ "user": { "id", "name", "email", "role", "isActive", "mustChangePassword" } }` and a session cookie. Invalid or inactive credentials return `401` with a safe message. Validation errors return `400`.
+`200`: `{ "user": { "id", "name", "email", "role", "isActive", "mustChangePassword" }, "csrfToken": string }` and a session cookie. Invalid, inactive, or temporarily rate-limited credentials return the same safe `401` response. After five failed attempts for the same account or source address within 15 minutes, further attempts are rejected for 15 minutes. Validation errors return `400`.
 
 ### `POST /api/auth/logout`
 

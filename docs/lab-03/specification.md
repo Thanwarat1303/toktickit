@@ -58,6 +58,7 @@ Email delivery, invitations, password-reset email, MFA, social login, SSO, self-
 - BR-16: The system must always retain at least one active Administrator.
 - BR-17: User deactivation is used instead of user deletion.
 - BR-18: Protected endpoints distinguish unauthenticated, forbidden, invalid, missing, conflict, and unexpected failures without leaking protected resources.
+- BR-19: After five failed login attempts for the same account or source address within 15 minutes, further login attempts are temporarily rejected for 15 minutes; the response remains the same safe `401` used for invalid credentials.
 
 ## 6. Authorization Matrix
 
@@ -74,16 +75,16 @@ Email delivery, invitations, password-reset email, MFA, social login, SSO, self-
 
 ## 7. Ticket Status Transition Matrix
 
-| From | Allowed next states | Role |
-|---|---|---|
-| New | Open, Cancelled | IT Staff |
-| Open | In Progress, Waiting for Requester, Cancelled | IT Staff |
-| In Progress | Waiting for Requester, Resolved, Cancelled | IT Staff |
-| Waiting for Requester | In Progress, Resolved, Cancelled | IT Staff |
-| Resolved | Closed, Reopened | IT Staff |
-| Closed | Reopened | IT Staff |
-| Reopened | In Progress, Cancelled | IT Staff |
-| Cancelled | Reopened | IT Staff |
+| From | Allowed next states | Role | Required confirmation |
+|---|---|---|---|
+| New | Open, Cancelled | IT Staff | None for Open; explicit staff confirmation for Cancelled |
+| Open | In Progress, Waiting for Requester, Cancelled | IT Staff | None for In Progress/Waiting; explicit staff confirmation for Cancelled |
+| In Progress | Waiting for Requester, Resolved, Cancelled | IT Staff | Explicit staff confirmation for Resolved/Cancelled |
+| Waiting for Requester | In Progress, Resolved, Cancelled | IT Staff | Explicit staff confirmation for Resolved/Cancelled |
+| Resolved | Closed, Reopened | IT Staff | Explicit staff confirmation for Closed; none for Reopened |
+| Closed | Reopened | IT Staff | Explicit staff confirmation |
+| Reopened | In Progress, Cancelled | IT Staff | None for In Progress; explicit staff confirmation for Cancelled |
+| Cancelled | Reopened | IT Staff | Explicit staff confirmation |
 
 Requester resolution indication is a separate flag and does not change formal status.
 
@@ -119,7 +120,8 @@ The temporary Development Requester selector, its localStorage state, and reques
 
 ## 11. Assumptions and Decisions
 
-- Use an HTTP-only, same-site session cookie for this course stack; the server owns session validity and logout invalidation.
+- Use an HTTP-only, same-site session cookie for this course stack. A session expires after 8 hours and is rejected by the server after expiry; logout invalidates it immediately.
+- Protect state-changing cookie-authenticated requests with a CSRF token: the server issues a per-session token through the authenticated bootstrap/current-user response, and the client sends it in `X-CSRF-Token`; the server compares it before POST, PATCH, and DELETE operations. Login has no existing authenticated session and is exempt; GET/HEAD/OPTIONS are read-only.
 - Use a maintained password-hashing library such as bcrypt or Argon2; local seed credentials are development-only.
 - Keep Administrator and IT Staff responsibilities separate unless a later reviewed matrix explicitly permits overlap.
 - Use safe generic authentication errors and avoid resource-existence leaks across ownership boundaries.
