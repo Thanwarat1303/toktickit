@@ -13,7 +13,7 @@ Tests are planned before implementation and must be marked `Pass` only after the
 | API-05 | API Positive | FR-02 / AC-02 | First-login password change | Normal access only after valid change | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-06 | API Security | BR-03 / AC-04 | Requester ownership | Client requester ID cannot cross scope | server/tests/lab-03/authorization.api.test.ts | Planned |
 | API-07 | API Security | FR-04 | Role guards | Unauthenticated/forbidden roles rejected | server/tests/lab-03/authorization.api.test.ts | Planned |
-| API-08 | Migration | FR-09 / AC-11 | Lab 2 migration | Existing tickets/attachments retain owners | server/tests/lab-03/migration.api.test.ts | Planned |
+| API-08 | Migration | FR-09 / AC-11 | Lab 2 migration and Lab 3 seed | Existing tickets/attachments retain owners; required roles are seeded; running the seed twice creates no duplicates | server/tests/lab-03/data-model-migration.test.ts | Passed |
 | API-09 | API Positive | FR-06 / AC-05 | Staff queue queries | Search, filters, sort, pagination and metadata | server/tests/lab-03/staff-queue.api.test.ts | Planned |
 | API-10 | API Security | FR-06 | Queue authorization | Requester cannot access staff queue | server/tests/lab-03/staff-queue.api.test.ts | Planned |
 | API-11 | API Positive | FR-06 / AC-06 | Claim and reassign | Valid active staff ownership changes | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
