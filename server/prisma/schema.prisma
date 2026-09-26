@@ -13,6 +13,38 @@ enum Priority {
   HIGH
 }
 
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
+model User {
+  id                Int       @id @default(autoincrement())
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  isActive          Boolean   @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  sessions          Session[]
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  tokenHash  String   @unique
+  csrfToken  String
+  userId     Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique

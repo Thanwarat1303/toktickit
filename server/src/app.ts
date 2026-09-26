@@ -6,10 +6,26 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
 import { generateTicketNumber } from "./ticket-number.js";
+import {
+  authError,
+  clearSessionCookie,
+  hashPassword,
+  login,
+  publicUser,
+  requireAuth,
+  requireCsrf,
+  setSessionCookie,
+  type AuthenticatedRequest,
+} from "./auth.js";
 
 export const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 // Issue 2 - API health check
@@ -18,6 +34,57 @@ app.get("/api/health", (_req: Request, res: Response) => {
     status: "ok",
     service: "TokTickIT API",
   });
+});
+
+// Issue #30 - Authentication API and server-side sessions.
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!email || !/^\S+@\S+\.\S+$/.test(email) || !password) {
+    return authError(res, 400, "VALIDATION_ERROR", "Email and password are required.");
+  }
+
+  try {
+    const result = await login(req, email, password);
+    if (result.kind === "invalid") return authError(res, 401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+    setSessionCookie(res, result.session.token);
+    return res.status(200).json({ user: publicUser(result.user), csrfToken: result.session.csrfToken });
+  } catch {
+    return authError(res, 500, "AUTH_ERROR", "Unable to sign in.");
+  }
+});
+
+app.post("/api/auth/logout", requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await getPrisma().session.delete({ where: { id: req.auth!.sessionId } });
+    clearSessionCookie(res);
+    return res.status(204).send();
+  } catch {
+    return authError(res, 500, "AUTH_ERROR", "Unable to sign out.");
+  }
+});
+
+app.get("/api/auth/me", requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  return res.status(200).json({ user: publicUser(req.auth!.user), csrfToken: req.auth!.csrfToken });
+});
+
+app.post("/api/auth/change-password", requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  const confirmPassword = typeof req.body?.confirmPassword === "string" ? req.body.confirmPassword : "";
+  if (!currentPassword || newPassword.length < 8 || newPassword !== confirmPassword || newPassword === currentPassword) {
+    return authError(res, 400, "VALIDATION_ERROR", "Password must be at least 8 characters, match confirmation, and differ from the current password.");
+  }
+  try {
+    const bcrypt = await import("bcryptjs");
+    const valid = await bcrypt.default.compare(currentPassword, req.auth!.user.passwordHash);
+    if (!valid) return authError(res, 400, "VALIDATION_ERROR", "Current password is incorrect.");
+    const passwordHash = await hashPassword(newPassword);
+    const user = await getPrisma().user.update({ where: { id: req.auth!.user.id }, data: { passwordHash, mustChangePassword: false } });
+    return res.status(200).json({ user: publicUser(user) });
+  } catch {
+    return authError(res, 500, "AUTH_ERROR", "Unable to change password.");
+  }
 });
 
 // Issue 4 - Active category list
