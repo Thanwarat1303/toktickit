@@ -90,9 +90,11 @@ Requester resolution indication is a separate flag and does not change formal st
 
 ## 8. Data and Migration Decisions
 
-Introduce `User` with unique email, name, passwordHash, role, isActive, mustChangePassword, createdAt, and updatedAt. Existing Requester records are migrated to Requester users using deterministic local initial passwords documented for development only. Existing ticket requester ownership is retained through the migrated user relation. Add ticket owner, IT Priority, workflow status, resolution indication, comments, and notes with author relations and indexes for queue queries. The migration must be forward-only and must not discard existing ticket or attachment rows.
+Introduce `User` with unique email, name, passwordHash, role, isActive, mustChangePassword, createdAt, and updatedAt. Existing Requester records are linked to authenticated `User` records through `Requester.userId`, while `Ticket.requesterId` continues to reference the existing `Requester.id` so all Lab 2 ticket ownership remains intact. Seed passwords are development-only and stored as bcrypt hashes; the seed reads `LAB3_INITIAL_PASSWORD` (or uses the documented local fallback) and every seeded account must change its password after the first successful login. Add ticket owner, IT Priority, workflow status, resolution indication, comments, and notes with author relations and indexes for queue queries. The migration must be forward-only and must not discard existing ticket or attachment rows.
 
 The temporary Development Requester selector, its localStorage state, and requesterId-based ownership input are removed after authenticated identity is available.
+
+For local development only, the fallback seed password is `LAB3_INITIAL_PASSWORD_MUST_CHANGE`; it is hashed with bcrypt before storage, and `mustChangePassword` remains true. Deployments must set `LAB3_INITIAL_PASSWORD` to a private value and rotate it after seeding.
 
 ## 9. Acceptance Criteria
 

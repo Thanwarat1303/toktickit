@@ -1,6 +1,9 @@
 import { PrismaClient, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
-const initialPasswordHash = "LAB3_INITIAL_PASSWORD_MUST_CHANGE";
+/** Development-only password. Every seeded account must change it after login. */
+export const initialPassword = process.env.LAB3_INITIAL_PASSWORD ?? "LAB3_INITIAL_PASSWORD_MUST_CHANGE";
+export const initialPasswordHash = bcrypt.hashSync(initialPassword, 12);
 
 export const categories = [
   { name: "Account and Access", isActive: true },
@@ -104,19 +107,21 @@ export async function seedLab2Data(prisma: PrismaClient) {
   }
 
   for (const requester of requesters) {
+    const existingUser = await prisma.user.findUnique({ where: { email: requester.email }, select: { passwordHash: true, mustChangePassword: true } });
     const user = await prisma.user.upsert({
       where: { email: requester.email },
       update: {
         name: requester.name,
         role: UserRole.REQUESTER,
         isActive: requester.isActive,
-        mustChangePassword: true,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
+        ...(existingUser?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
       },
       create: {
         ...requester,
         passwordHash: initialPasswordHash,
         role: UserRole.REQUESTER,
-        mustChangePassword: true,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
       },
     });
 
@@ -134,13 +139,15 @@ export async function seedLab2Data(prisma: PrismaClient) {
   }
 
   for (const staff of staffUsers) {
+    const existingUser = await prisma.user.findUnique({ where: { email: staff.email }, select: { passwordHash: true, mustChangePassword: true } });
     await prisma.user.upsert({
       where: { email: staff.email },
       update: {
         name: staff.name,
         role: UserRole.IT_STAFF,
         isActive: staff.isActive,
-        mustChangePassword: true,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
+        ...(existingUser?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
       },
       create: {
         ...staff,
@@ -151,13 +158,15 @@ export async function seedLab2Data(prisma: PrismaClient) {
     });
   }
 
+  const existingAdministrator = await prisma.user.findUnique({ where: { email: administrator.email }, select: { passwordHash: true, mustChangePassword: true } });
   await prisma.user.upsert({
     where: { email: administrator.email },
     update: {
       name: administrator.name,
       role: UserRole.ADMINISTRATOR,
       isActive: administrator.isActive,
-      mustChangePassword: true,
+      mustChangePassword: existingAdministrator?.mustChangePassword ?? true,
+      ...(existingAdministrator?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
     },
     create: {
       ...administrator,

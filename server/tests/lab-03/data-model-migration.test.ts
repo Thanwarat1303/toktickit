@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
+import bcrypt from "bcryptjs";
 import { UserRole } from "@prisma/client";
 import { getPrisma } from "../../src/prisma.js";
-import { seedLab2Data } from "../../prisma/seed-data.js";
+import { initialPassword, seedLab2Data } from "../../prisma/seed-data.js";
 
 describe("Lab 3 data model migration and seed", () => {
   const prisma = getPrisma();
@@ -31,6 +32,13 @@ describe("Lab 3 data model migration and seed", () => {
     expect(requesters.length).toBeGreaterThanOrEqual(5);
     expect(requesters.every((requester) => requester.user?.role === UserRole.REQUESTER)).toBe(true);
     expect(requesters.every((requester) => requester.tickets.every((ticket) => ticket.requesterId === requester.id))).toBe(true);
+  });
+
+  it("stores seeded credentials as bcrypt hashes", async () => {
+    const users = await prisma.user.findMany({ select: { passwordHash: true } });
+    expect(users.length).toBeGreaterThan(0);
+    expect(users.every((user) => /^\$2[aby]?\$\d{2}\$/.test(user.passwordHash))).toBe(true);
+    await expect(bcrypt.compare(initialPassword, users[0].passwordHash)).resolves.toBe(true);
   });
 
   it("keeps the Lab 3 seed idempotent", async () => {
