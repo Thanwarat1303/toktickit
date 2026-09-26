@@ -1,20 +1,6 @@
--- Issue #30: authentication users and server-side sessions.
-CREATE TYPE "UserRole" AS ENUM ('REQUESTER', 'IT_STAFF', 'ADMINISTRATOR');
-
-CREATE TABLE "User" (
-  "id" SERIAL NOT NULL,
-  "name" TEXT NOT NULL,
-  "email" TEXT NOT NULL,
-  "passwordHash" TEXT NOT NULL,
-  "role" "UserRole" NOT NULL,
-  "isActive" BOOLEAN NOT NULL DEFAULT true,
-  "mustChangePassword" BOOLEAN NOT NULL DEFAULT true,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
-  CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-);
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
-
+-- Issue #30: authentication session storage.
+-- User/UserRole are created and backfilled by the preceding Lab 3 data-model
+-- migration. This migration must contain only the remaining auth diff.
 CREATE TABLE "Session" (
   "id" SERIAL NOT NULL,
   "tokenHash" TEXT NOT NULL,

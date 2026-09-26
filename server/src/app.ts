@@ -14,6 +14,7 @@ import {
   publicUser,
   requireAuth,
   requireCsrf,
+  requireSameOrigin,
   setSessionCookie,
   type AuthenticatedRequest,
 } from "./auth.js";
@@ -54,7 +55,7 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/api/auth/logout", requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.post("/api/auth/logout", requireSameOrigin, requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   try {
     await getPrisma().session.delete({ where: { id: req.auth!.sessionId } });
     clearSessionCookie(res);
@@ -68,7 +69,7 @@ app.get("/api/auth/me", requireAuth, (req: AuthenticatedRequest, res: Response) 
   return res.status(200).json({ user: publicUser(req.auth!.user), csrfToken: req.auth!.csrfToken });
 });
 
-app.post("/api/auth/change-password", requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.post("/api/auth/change-password", requireSameOrigin, requireAuth, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
   const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
   const confirmPassword = typeof req.body?.confirmPassword === "string" ? req.body.confirmPassword : "";

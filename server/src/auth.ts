@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import type { User, UserRole } from "@prisma/client";
@@ -11,7 +11,14 @@ const RATE_LIMIT_LOCK_MS = 15 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 
 type Attempt = { failures: number; firstFailureAt: number; lockedUntil: number };
-const attempts = new Map<string, Attempt>();
+const accountAttempts = new Map<string, Attempt>();
+const ipAttempts = new Map<string, Attempt>();
+const DUMMY_PASSWORD_HASH = "$2b$12$APutU5UyqjrAMrAOlhKun.NAwSoEG5YabyunTZI/JEEmJjZ56VXfy";
+
+export function resetRateLimits() {
+  accountAttempts.clear();
+  ipAttempts.clear();
+}
 
 export type AuthenticatedRequest = Request & {
   auth?: { user: User; sessionId: number; csrfToken: string };
@@ -54,30 +61,33 @@ function cookieValue(req: Request) {
   return pair?.slice(SESSION_COOKIE.length + 1) || undefined;
 }
 
-function rateKey(req: Request, email: string) {
-  return `${req.ip}|${email.toLowerCase()}`;
-}
-
-function isRateLimited(key: string, now = Date.now()) {
-  const attempt = attempts.get(key);
+function isRateLimited(store: Map<string, Attempt>, key: string, now = Date.now()) {
+  const attempt = store.get(key);
   if (!attempt) return false;
   if (attempt.lockedUntil > now) return true;
-  if (now - attempt.firstFailureAt > RATE_LIMIT_WINDOW_MS) attempts.delete(key);
+  if (now - attempt.firstFailureAt > RATE_LIMIT_WINDOW_MS) store.delete(key);
   return false;
 }
 
-function recordFailure(key: string, now = Date.now()) {
-  const current = attempts.get(key);
+function recordFailure(store: Map<string, Attempt>, key: string, now = Date.now()) {
+  const current = store.get(key);
   if (!current || now - current.firstFailureAt > RATE_LIMIT_WINDOW_MS) {
-    attempts.set(key, { failures: 1, firstFailureAt: now, lockedUntil: 0 });
+    store.set(key, { failures: 1, firstFailureAt: now, lockedUntil: 0 });
     return;
   }
   current.failures += 1;
   if (current.failures >= MAX_FAILED_ATTEMPTS) current.lockedUntil = now + RATE_LIMIT_LOCK_MS;
 }
 
-function clearFailures(key: string) {
-  attempts.delete(key);
+function clearFailures(store: Map<string, Attempt>, key: string) {
+  store.delete(key);
+}
+
+function secureEqual(left: string | undefined, right: string | undefined) {
+  if (!left || !right) return false;
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function createSession(userId: number) {
@@ -114,23 +124,36 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
 }
 
 export function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  if (!req.auth || req.header("X-CSRF-Token") !== req.auth.csrfToken) {
+  if (!req.auth || !secureEqual(req.header("X-CSRF-Token"), req.auth.csrfToken)) {
     return authError(res, 403, "CSRF_MISMATCH", "A valid CSRF token is required.");
   }
   return next();
 }
 
+export function requireSameOrigin(req: Request, res: Response, next: NextFunction) {
+  const expected = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+  if (req.header("origin") !== expected) {
+    return authError(res, 403, "ORIGIN_MISMATCH", "Request origin is not allowed.");
+  }
+  return next();
+}
+
 export async function login(req: Request, email: string, password: string) {
-  const key = rateKey(req, email);
-  if (isRateLimited(key)) return { kind: "invalid" as const };
+  const accountKey = email.toLowerCase();
+  const ipKey = req.ip || "unknown";
+  if (isRateLimited(accountAttempts, accountKey) || isRateLimited(ipAttempts, ipKey)) return { kind: "invalid" as const };
   const prisma = getPrisma();
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  const valid = !!user && user.isActive && await bcrypt.compare(password, user.passwordHash);
+  const passwordHash = user?.isActive ? user.passwordHash : DUMMY_PASSWORD_HASH;
+  const passwordMatches = await bcrypt.compare(password, passwordHash);
+  const valid = !!user && user.isActive && passwordMatches;
   if (!valid) {
-    recordFailure(key);
+    recordFailure(accountAttempts, accountKey);
+    recordFailure(ipAttempts, ipKey);
     return { kind: "invalid" as const };
   }
-  clearFailures(key);
+  clearFailures(accountAttempts, accountKey);
+  clearFailures(ipAttempts, ipKey);
   const session = await createSession(user.id);
   return { kind: "success" as const, user, session };
 }
@@ -146,4 +169,3 @@ export function validRole(value: unknown): value is UserRole {
 export function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
 }
-
