@@ -21,21 +21,34 @@ enum UserRole {
 
 model User {
   id                 Int      @id @default(autoincrement())
-  name               String
-  email              String   @unique
-  passwordHash       String
-  role               UserRole
-  isActive           Boolean  @default(true)
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  isActive          Boolean   @default(true)
   mustChangePassword Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   requesterProfile Requester?      @relation("RequesterUser")
   assignedTickets  Ticket[]        @relation("AssignedStaff")
   comments         TicketComment[]
   internalNotes    InternalNote[]
+  sessions         Session[]
 
   @@index([role, isActive])
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  tokenHash  String   @unique
+  csrfToken  String
+  userId     Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Category {
