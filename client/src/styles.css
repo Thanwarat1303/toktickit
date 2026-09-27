@@ -80,6 +80,7 @@ body {
 }
 
 .requester-card,
+.auth-card,
 .selected-card,
 .system-card,
 .ticket-form-card,
@@ -96,6 +97,12 @@ body {
   margin: 0 auto;
   padding: clamp(1.5rem, 5vw, 2.6rem);
   text-align: center;
+}
+
+.auth-card {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: clamp(1.5rem, 5vw, 2.6rem);
 }
 
 .requester-card__icon {

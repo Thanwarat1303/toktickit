@@ -5,6 +5,10 @@ export interface Category {
   name: string;
 }
 
+export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+export interface AuthUser { id: number; name: string; email: string; role: UserRole; isActive: boolean; mustChangePassword: boolean; }
+export interface AuthSession { user: AuthUser; csrfToken: string; }
+
 export interface RelatedSystem {
   id: number;
   name: string;
@@ -105,6 +109,32 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = "ApiRequestError";
   }
+}
+
+async function authRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include", ...options });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new ApiRequestError(body?.error?.message ?? "Unable to complete the request.");
+  }
+  return response.json() as Promise<T>;
+}
+
+export function login(email: string, password: string) {
+  return authRequest<AuthSession>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+}
+
+export function getCurrentUser() {
+  return authRequest<AuthSession>("/api/auth/me");
+}
+
+export function changePassword(csrfToken: string, currentPassword: string, newPassword: string, confirmPassword: string) {
+  return authRequest<AuthSession>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) });
+}
+
+export async function logout(csrfToken: string) {
+  const response = await fetch(`${API_URL}/api/auth/logout`, { method: "POST", credentials: "include", headers: { "X-CSRF-Token": csrfToken } });
+  if (!response.ok) throw new ApiRequestError("Unable to sign out.");
 }
 
 async function getErrorMessage(response: Response, fallback: string) {
