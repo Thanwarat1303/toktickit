@@ -5,6 +5,7 @@ import ChangePassword from "./ChangePassword.js";
 import CreateTicketForm from "./CreateTicketForm.js";
 import MyTickets from "./MyTickets.js";
 import TicketDetail from "./TicketDetail.js";
+import StaffTicketQueue from "./StaffTicketQueue.js";
 
 type Screen = "loading" | "login" | "change-password" | "home";
 
@@ -22,7 +23,7 @@ export default function App() {
       {screen === "loading" && <p className="text-center text-secondary">Restoring your session…</p>}
       {screen === "login" && <Login onSuccess={openSession} />}
       {screen === "change-password" && session && <ChangePassword session={session} onSuccess={openSession} />}
-      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : <section className="selected-card" aria-labelledby="welcome-heading"><div><p className="eyebrow mb-2">Authenticated</p><h1 id="welcome-heading" className="h2">Welcome, {session.user.name}</h1><p className="text-secondary mb-2">{session.user.email} · {session.user.role.replace("_", " ")}</p><p className="mb-0">Your role-specific workspace will be available in the next feature.</p></div></section>)}
+      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : session.user.role === "IT_STAFF" ? <StaffTicketQueue /> : <section className="selected-card" aria-labelledby="welcome-heading"><div><p className="eyebrow mb-2">Authenticated</p><h1 id="welcome-heading" className="h2">Welcome, {session.user.name}</h1><p className="text-secondary mb-2">{session.user.email} · Administrator</p><p className="mb-0">User management will be available in a later feature.</p></div></section>)}
     </main>
   </div>;
 }

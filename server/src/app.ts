@@ -554,6 +554,86 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
   }
 });
 
+// Issue #33 — the shared IT Staff queue is deliberately independent of the
+// Requester profile.  Staff identity comes solely from the signed-in session;
+// it never accepts a client-supplied requester or staff id as authority.
+app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const search = queryString(req.query.search);
+  const categoryIdText = queryString(req.query.categoryId);
+  const relatedSystemIdText = queryString(req.query.relatedSystemId);
+  const itPriorityText = queryString(req.query.itPriority);
+  const status = queryString(req.query.status);
+  const ownerIdText = queryString(req.query.ownerId);
+  const sortBy = queryString(req.query.sortBy) ?? "createdAt";
+  const sortDir = queryString(req.query.sortDir) ?? "desc";
+  const pageText = queryString(req.query.page);
+  const pageSizeText = queryString(req.query.pageSize);
+  const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
+  const relatedSystemId = relatedSystemIdText ? queryPositiveInteger(relatedSystemIdText) : undefined;
+  const ownerId = ownerIdText === "0" ? 0 : ownerIdText ? queryPositiveInteger(ownerIdText) : undefined;
+  const page = pageText ? queryPositiveInteger(pageText) : 1;
+  const pageSize = pageSizeText ? queryPositiveInteger(pageSizeText) : 20;
+
+  if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || !page || !pageSize || pageSize > 50) {
+    return res.status(400).json({ message: "Pagination and filters must use valid positive integers (ownerId 0 means unassigned)" });
+  }
+  if (itPriorityText && !(itPriorityText in priorityValues)) {
+    return res.status(400).json({ message: "itPriority must be Low, Medium, or High" });
+  }
+  if (status && !["New", "Open", "In Progress", "Waiting for Requester", "Resolved", "Closed", "Reopened", "Cancelled"].includes(status)) {
+    return res.status(400).json({ message: "status is not valid" });
+  }
+  if (!["createdAt", "updatedAt", "itPriority", "status"].includes(sortBy) || !["asc", "desc"].includes(sortDir)) {
+    return res.status(400).json({ message: "sortBy and sortDir are not valid" });
+  }
+
+  try {
+    const where: Prisma.TicketWhereInput = {
+      ...(search ? { OR: [
+        { ticketNumber: { contains: search, mode: "insensitive" } },
+        { summary: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ] } : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(relatedSystemId ? { relatedSystemId } : {}),
+      ...(itPriorityText ? { itPriority: priorityValues[itPriorityText] } : {}),
+      ...(status ? { currentStatus: status } : {}),
+      ...(ownerId === 0 ? { assignedStaffId: null } : ownerId ? { assignedStaffId: ownerId } : {}),
+    };
+    const direction: Prisma.SortOrder = sortDir as Prisma.SortOrder;
+    const orderBy: Prisma.TicketOrderByWithRelationInput =
+      sortBy === "updatedAt" ? { updatedAt: direction } :
+      sortBy === "itPriority" ? { itPriority: direction } :
+      sortBy === "status" ? { currentStatus: direction } : { createdAt: direction };
+    const prisma = getPrisma();
+    const [tickets, totalItems] = await Promise.all([
+      prisma.ticket.findMany({
+        where, orderBy: [orderBy, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize,
+        include: {
+          requester: { select: { id: true, name: true } },
+          assignedStaff: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+    return res.status(200).json({
+      tickets: tickets.map((ticket) => ({
+        id: ticket.id, ticketNumber: ticket.ticketNumber, summary: ticket.summary,
+        priority: formatPriority(ticket.priority), itPriority: formatPriority(ticket.itPriority),
+        status: ticket.currentStatus, category: ticket.category, relatedSystem: ticket.relatedSystem,
+        requesterName: ticket.requester.name,
+        owner: ticket.assignedStaff ? { id: ticket.assignedStaff.id, name: ticket.assignedStaff.name } : null,
+        createdAt: ticket.createdAt, updatedAt: ticket.updatedAt,
+      })),
+      pagination: { page, pageSize, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / pageSize)) },
+    });
+  } catch {
+    return res.status(500).json({ message: "Unable to load the staff ticket queue" });
+  }
+});
+
 // Lab 2, Issue 17 - Ticket detail and attachment inspection
 app.get("/api/tickets/:ticketId", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const requesterId = await authenticatedRequesterId(req);

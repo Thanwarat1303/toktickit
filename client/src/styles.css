@@ -290,6 +290,19 @@ body {
 .ticket-pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .empty-state { padding: 2.2rem 1rem; border: 1px dashed var(--zen-border); border-radius: 1rem; color: var(--zen-muted); text-align: center; }
 
+.staff-queue__heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.staff-queue__search { display: grid; gap: 0.35rem; font-weight: 700; margin: 1rem 0; }
+.staff-queue__search input, .staff-queue__filters select { width: 100%; border: 1px solid var(--zen-border); border-radius: 0.55rem; padding: 0.6rem 0.7rem; background: #fff; }
+.staff-queue__filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+.staff-queue__filters label { display: grid; gap: 0.35rem; font-size: 0.83rem; font-weight: 700; }
+.staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: none; }
+.staff-queue__table-wrap { overflow-x: auto; }
+.staff-queue .ticket-table { width: 100%; min-width: 820px; }
+.staff-queue .ticket-table th button { border: 0; background: transparent; font: inherit; font-weight: 800; color: inherit; cursor: pointer; padding: 0; }
+.staff-queue__card { border: 1px solid var(--zen-border); border-radius: 0.7rem; padding: 0.85rem; display: grid; gap: 0.55rem; }
+.staff-queue__card > div { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
+.staff-queue__card p { color: var(--zen-muted); font-size: 0.85rem; margin: 0; }
+
 .ticket-detail-card__header {
   display: flex;
   align-items: flex-start;
@@ -449,7 +462,15 @@ body {
   .ticket-filters { grid-template-columns: 1fr; }
   .ticket-detail-grid { grid-template-columns: 1fr; }
   .ticket-pagination { align-items: stretch; flex-direction: column; }
+  .staff-queue__filters-wrap, .staff-queue__table-wrap { display: none; }
+  .staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: block; }
+  .staff-queue__filters-mobile .staff-queue__filters { display: grid; grid-template-columns: 1fr; margin-top: 0.75rem; }
   .attachment-upload-form { grid-template-columns: 1fr; }
   .attachment-actions { width: 100%; justify-content: stretch; }
   .attachment-actions .btn { flex: 1; }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .staff-queue__filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .staff-queue__wide { display: none; }
 }

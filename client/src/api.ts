@@ -105,6 +105,39 @@ export interface TicketListQuery {
   pageSize?: number;
 }
 
+export interface StaffTicketSummary {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  priority: "Low" | "Medium" | "High";
+  itPriority: "Low" | "Medium" | "High";
+  status: string;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  requesterName: string;
+  owner: { id: number; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTicketQueueResponse {
+  tickets: StaffTicketSummary[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
+}
+
+export interface StaffTicketQueueQuery {
+  search?: string;
+  categoryId?: number;
+  relatedSystemId?: number;
+  itPriority?: "Low" | "Medium" | "High";
+  status?: string;
+  ownerId?: number;
+  sortBy?: "createdAt" | "updatedAt" | "itPriority" | "status";
+  sortDir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
 export class ApiRequestError extends Error {
   constructor(message: string) {
     super(message);
@@ -319,5 +352,15 @@ export async function createTicket(
     );
   }
 
+  return response.json();
+}
+
+export async function getStaffTickets(query: StaffTicketQueueQuery): Promise<StaffTicketQueueResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"));
   return response.json();
 }
