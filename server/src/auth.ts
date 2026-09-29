@@ -6,6 +6,9 @@ import { getPrisma } from "./prisma.js";
 
 export const SESSION_COOKIE = "toktickit_session";
 export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+// Strict is intentional: deployment must keep the browser application and
+// API on the same site.  See the README's production deployment contract.
+const SESSION_SAME_SITE = "Strict";
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_LOCK_MS = 15 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -47,12 +50,12 @@ export function setSessionCookie(res: Response, token: string) {
   const secure = process.env.NODE_ENV === "production";
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE}=${token}; Max-Age=${SESSION_TTL_MS / 1000}; Path=/; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`,
+    `${SESSION_COOKIE}=${token}; Max-Age=${SESSION_TTL_MS / 1000}; Path=/; HttpOnly; SameSite=${SESSION_SAME_SITE}${secure ? "; Secure" : ""}`,
   );
 }
 
 export function clearSessionCookie(res: Response) {
-  res.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict`);
+  res.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=${SESSION_SAME_SITE}`);
 }
 
 function cookieValue(req: Request) {

@@ -8,7 +8,6 @@ export interface Category {
 export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
 export interface AuthUser { id: number; name: string; email: string; role: UserRole; isActive: boolean; mustChangePassword: boolean; }
 export interface AuthSession { user: AuthUser; csrfToken: string; }
-let csrfToken = "";
 
 export interface RelatedSystem {
   id: number;
@@ -105,6 +104,39 @@ export interface TicketListQuery {
   pageSize?: number;
 }
 
+export interface StaffTicketSummary {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  priority: "Low" | "Medium" | "High";
+  itPriority: "Low" | "Medium" | "High";
+  status: string;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  requesterName: string;
+  owner: { id: number; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTicketQueueResponse {
+  tickets: StaffTicketSummary[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
+}
+
+export interface StaffTicketQueueQuery {
+  search?: string;
+  categoryId?: number;
+  relatedSystemId?: number;
+  itPriority?: "Low" | "Medium" | "High";
+  status?: string;
+  ownerId?: number;
+  sortBy?: "createdAt" | "updatedAt" | "itPriority" | "status";
+  sortDir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
 export class ApiRequestError extends Error {
   constructor(message: string) {
     super(message);
@@ -122,15 +154,15 @@ async function authRequest<T>(path: string, options: RequestInit = {}): Promise<
 }
 
 export function login(email: string, password: string) {
-  return authRequest<AuthSession>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }).then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
 }
 
 export function getCurrentUser() {
-  return authRequest<AuthSession>("/api/auth/me").then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/me");
 }
 
 export function changePassword(currentCsrfToken: string, currentPassword: string, newPassword: string, confirmPassword: string) {
-  return authRequest<AuthSession>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": currentCsrfToken }, body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) }).then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": currentCsrfToken }, body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) });
 }
 
 export async function logout(csrfToken: string) {
@@ -248,7 +280,8 @@ export async function getTicketAttachments(ticketId: number): Promise<Attachment
 
 export async function uploadTicketAttachment(
   ticketId: number,
-  file: File
+  file: File,
+  csrfToken: string,
 ): Promise<AttachmentSummary> {
   const formData = new FormData();
   formData.append("file", file);
@@ -275,7 +308,8 @@ export function attachmentDownloadUrl(attachmentId: number): string {
 
 export async function removeAttachment(
   attachmentId: number,
-  removalReason: string
+  removalReason: string,
+  csrfToken: string,
 ): Promise<AttachmentSummary> {
   const response = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
     method: "DELETE",
@@ -295,7 +329,8 @@ export async function removeAttachment(
 }
 
 export async function createTicket(
-  input: CreateTicketInput
+  input: CreateTicketInput,
+  csrfToken: string,
 ): Promise<CreatedTicket> {
   const response = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
@@ -319,5 +354,15 @@ export async function createTicket(
     );
   }
 
+  return response.json();
+}
+
+export async function getStaffTickets(query: StaffTicketQueueQuery): Promise<StaffTicketQueueResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"));
   return response.json();
 }

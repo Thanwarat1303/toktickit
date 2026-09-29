@@ -12,6 +12,7 @@ import {
 
 interface TicketDetailProps {
   requester: { name: string };
+  csrfToken: string;
   ticketId: number;
   onBack: () => void;
 }
@@ -31,7 +32,7 @@ const allowedAttachmentTypes = new Set([
 const maxAttachmentBytes = 5 * 1024 * 1024;
 const maxActiveAttachments = 5;
 
-export default function TicketDetail({ requester, ticketId, onBack }: TicketDetailProps) {
+export default function TicketDetail({ requester, csrfToken, ticketId, onBack }: TicketDetailProps) {
   const [ticket, setTicket] = useState<TicketDetailData | null>(null);
   const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
   const [loadingTicket, setLoadingTicket] = useState(true);
@@ -112,7 +113,8 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     try {
       const removedAttachment = await removeAttachment(
         attachment.id,
-        reason
+        reason,
+        csrfToken,
       );
 
       setAttachments((currentAttachments) =>
@@ -159,7 +161,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setUploading(true);
 
     try {
-      await uploadTicketAttachment(ticketId, selectedFile);
+      await uploadTicketAttachment(ticketId, selectedFile, csrfToken);
       setSelectedFile(null);
       setFileInputKey((currentKey) => currentKey + 1);
       setUploadSuccess("Attachment uploaded successfully.");
