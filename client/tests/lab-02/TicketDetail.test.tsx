@@ -43,7 +43,7 @@ describe("Ticket Detail", () => {
       },
     ]);
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={vi.fn()} />);
 
     expect(await screen.findByText("TK-000010")).toBeInTheDocument();
     expect(screen.getByText("Laptop cannot connect")).toBeInTheDocument();
@@ -80,12 +80,12 @@ describe("Ticket Detail", () => {
       removalReason: "Wrong file",
     });
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Remove/i }));
 
     await waitFor(() => {
-      expect(api.removeAttachment).toHaveBeenCalledWith(5, "Wrong file");
+      expect(api.removeAttachment).toHaveBeenCalledWith(5, "Wrong file", "test-csrf");
     });
     expect(await screen.findByText(/Wrong file/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Download/i })).not.toBeInTheDocument();
@@ -121,14 +121,14 @@ describe("Ticket Detail", () => {
       removalReason: null,
     });
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={vi.fn()} />);
 
     const fileInput = await screen.findByLabelText(/Add an attachment/i);
     fireEvent.change(fileInput, { target: { files: [uploadFile] } });
     fireEvent.click(screen.getByRole("button", { name: /Upload attachment/i }));
 
     await waitFor(() => {
-      expect(api.uploadTicketAttachment).toHaveBeenCalledWith(10, uploadFile);
+      expect(api.uploadTicketAttachment).toHaveBeenCalledWith(10, uploadFile, "test-csrf");
     });
     expect(await screen.findByText("Attachment uploaded successfully.")).toBeInTheDocument();
     expect(await screen.findByText("ticket-evidence.pdf")).toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("Ticket Detail", () => {
       removalReason: null,
     });
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={vi.fn()} />);
 
     fireEvent.change(await screen.findByLabelText(/Add an attachment/i), {
       target: { files: [unsupportedFile] },
@@ -177,7 +177,7 @@ describe("Ticket Detail", () => {
       }))
     );
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={vi.fn()} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={vi.fn()} />);
 
     expect(await screen.findByLabelText(/Add an attachment \(5\/5\)/i)).toBeDisabled();
     expect(screen.getByRole("button", { name: /Upload attachment/i })).toBeDisabled();
@@ -189,7 +189,7 @@ describe("Ticket Detail", () => {
     vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);
     vi.spyOn(api, "getTicketAttachments").mockResolvedValue([]);
 
-    render(<TicketDetail requester={requester} ticketId={10} onBack={onBack} />);
+    render(<TicketDetail requester={requester} csrfToken="test-csrf" ticketId={10} onBack={onBack} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Back to My Tickets/i }));
 

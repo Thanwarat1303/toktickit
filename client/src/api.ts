@@ -8,7 +8,6 @@ export interface Category {
 export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
 export interface AuthUser { id: number; name: string; email: string; role: UserRole; isActive: boolean; mustChangePassword: boolean; }
 export interface AuthSession { user: AuthUser; csrfToken: string; }
-let csrfToken = "";
 
 export interface RelatedSystem {
   id: number;
@@ -122,15 +121,15 @@ async function authRequest<T>(path: string, options: RequestInit = {}): Promise<
 }
 
 export function login(email: string, password: string) {
-  return authRequest<AuthSession>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }).then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
 }
 
 export function getCurrentUser() {
-  return authRequest<AuthSession>("/api/auth/me").then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/me");
 }
 
 export function changePassword(currentCsrfToken: string, currentPassword: string, newPassword: string, confirmPassword: string) {
-  return authRequest<AuthSession>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": currentCsrfToken }, body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) }).then((session) => { csrfToken = session.csrfToken; return session; });
+  return authRequest<AuthSession>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": currentCsrfToken }, body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) });
 }
 
 export async function logout(csrfToken: string) {
@@ -248,7 +247,8 @@ export async function getTicketAttachments(ticketId: number): Promise<Attachment
 
 export async function uploadTicketAttachment(
   ticketId: number,
-  file: File
+  file: File,
+  csrfToken: string,
 ): Promise<AttachmentSummary> {
   const formData = new FormData();
   formData.append("file", file);
@@ -275,7 +275,8 @@ export function attachmentDownloadUrl(attachmentId: number): string {
 
 export async function removeAttachment(
   attachmentId: number,
-  removalReason: string
+  removalReason: string,
+  csrfToken: string,
 ): Promise<AttachmentSummary> {
   const response = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
     method: "DELETE",
@@ -295,7 +296,8 @@ export async function removeAttachment(
 }
 
 export async function createTicket(
-  input: CreateTicketInput
+  input: CreateTicketInput,
+  csrfToken: string,
 ): Promise<CreatedTicket> {
   const response = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
