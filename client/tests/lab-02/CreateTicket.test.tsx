@@ -25,7 +25,7 @@ describe("Create Ticket form", () => {
   it("shows field messages and does not call the API when required values are missing", async () => {
     mockReferenceData();
     const createTicket = vi.spyOn(api, "createTicket");
-    render(<CreateTicketForm requester={requester} />);
+    render(<CreateTicketForm requester={requester} csrfToken="test-csrf" />);
 
     await screen.findByRole("option", { name: "Hardware" });
     fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
@@ -51,7 +51,7 @@ describe("Create Ticket form", () => {
       priority: "Medium",
       createdAt: "2026-09-05T10:00:00.000Z",
     });
-    render(<CreateTicketForm requester={requester} />);
+    render(<CreateTicketForm requester={requester} csrfToken="test-csrf" />);
 
     fireEvent.change(await screen.findByLabelText(/^Category/), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/^Related System/), { target: { value: "2" } });
@@ -60,7 +60,7 @@ describe("Create Ticket form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
 
     expect(await screen.findByText("TK-000001")).toBeInTheDocument();
-    expect(api.createTicket).toHaveBeenCalledWith(expect.not.objectContaining({ requesterId: expect.anything() }));
+    expect(api.createTicket).toHaveBeenCalledWith(expect.not.objectContaining({ requesterId: expect.anything() }), "test-csrf");
   });
 
   it("shows a busy disabled submit button while ticket creation is in progress", async () => {
@@ -73,7 +73,7 @@ describe("Create Ticket form", () => {
       })
     );
 
-    render(<CreateTicketForm requester={requester} />);
+    render(<CreateTicketForm requester={requester} csrfToken="test-csrf" />);
 
     fireEvent.change(await screen.findByLabelText(/^Category/), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/^Related System/), { target: { value: "2" } });
@@ -105,7 +105,7 @@ describe("Create Ticket form", () => {
     vi.spyOn(api, "createTicket").mockRejectedValue(
       new api.ApiRequestError("A matching ticket was submitted recently")
     );
-    render(<CreateTicketForm requester={requester} />);
+    render(<CreateTicketForm requester={requester} csrfToken="test-csrf" />);
 
     fireEvent.change(await screen.findByLabelText(/^Category/), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/^Related System/), { target: { value: "2" } });
