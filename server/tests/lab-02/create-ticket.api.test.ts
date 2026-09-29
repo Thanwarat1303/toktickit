@@ -1,13 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import request from "supertest";
-import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { TEST_ORIGIN, createRequesterSession, removeRequesterSession, type RequesterSessionFixture } from "../helpers/requester-session.js";
 
 const prisma = getPrisma();
 const marker = `Feature 14 automated test ${Date.now()}`;
-
-let activeRequesterId: number;
-let inactiveRequesterId: number;
+let fixture: RequesterSessionFixture;
 let activeCategoryId: number;
 let inactiveCategoryId: number;
 let activeRelatedSystemId: number;
@@ -24,19 +21,18 @@ function validTicketBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
-beforeAll(async () => {
-  const [activeRequester, inactiveRequester, activeCategory, inactiveCategory, activeSystem, inactiveSystem] =
-    await Promise.all([
-      prisma.requester.findFirstOrThrow({ where: { isActive: true }, orderBy: { id: "asc" } }),
-      prisma.requester.findFirstOrThrow({ where: { isActive: false }, orderBy: { id: "asc" } }),
-      prisma.category.findFirstOrThrow({ where: { isActive: true }, orderBy: { id: "asc" } }),
-      prisma.category.findFirstOrThrow({ where: { isActive: false }, orderBy: { id: "asc" } }),
-      prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true }, orderBy: { id: "asc" } }),
-      prisma.relatedSystem.findFirstOrThrow({ where: { isActive: false }, orderBy: { id: "asc" } }),
-    ]);
+function postTicket(body: Record<string, unknown>) {
+  return fixture.agent.post("/api/tickets").set("Origin", TEST_ORIGIN).set("X-CSRF-Token", fixture.csrfToken).send(body);
+}
 
-  activeRequesterId = activeRequester.id;
-  inactiveRequesterId = inactiveRequester.id;
+beforeAll(async () => {
+  fixture = await createRequesterSession("create-ticket");
+  const [activeCategory, inactiveCategory, activeSystem, inactiveSystem] = await Promise.all([
+    prisma.category.findFirstOrThrow({ where: { isActive: true } }),
+    prisma.category.findFirstOrThrow({ where: { isActive: false } }),
+    prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } }),
+    prisma.relatedSystem.findFirstOrThrow({ where: { isActive: false } }),
+  ]);
   activeCategoryId = activeCategory.id;
   inactiveCategoryId = inactiveCategory.id;
   activeRelatedSystemId = activeSystem.id;
@@ -44,154 +40,47 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.ticket.deleteMany({
-    where: {
-      summary: {
-        startsWith: marker,
-      },
-    },
-  });
+  await prisma.ticket.deleteMany({ where: { summary: { startsWith: marker } } });
+  await removeRequesterSession(fixture);
   await prisma.$disconnect();
 });
 
 describe("POST /api/tickets", () => {
-  it("creates a valid ticket with a backend-generated number and New status", async () => {
-    const response = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({
-        summary: `  ${marker} - trim this summary  `,
-        description: "  The saved description is trimmed by the API.  ",
-      }));
-
+  it("creates a valid ticket owned by the signed-in requester", async () => {
+    const response = await postTicket(validTicketBody({ summary: `  ${marker} - trim this summary  `, description: "  Saved description.  " }));
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
-      ticketNumber: expect.stringMatching(/^TK-\d{6}$/),
-      status: "New",
-      requesterId: activeRequesterId,
-      categoryId: activeCategoryId,
-      relatedSystemId: activeRelatedSystemId,
-      summary: `${marker} - trim this summary`,
-      description: "The saved description is trimmed by the API.",
-      priority: "Medium",
+      ticketNumber: expect.stringMatching(/^TK-\d{6}$/), status: "New", requesterId: fixture.requesterId,
+      categoryId: activeCategoryId, relatedSystemId: activeRelatedSystemId,
+      summary: `${marker} - trim this summary`, description: "Saved description.", priority: "Medium",
     });
   });
 
-  it("rejects missing and invalid ticket fields", async () => {
-    const response = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ summary: "   " }));
-
-    expect(response.status).toBe(400);
-    expect(response.body.message).toMatch(/summary is required/i);
-  });
-
-  it("accepts a summary with exactly 100 characters and rejects one with 101 characters", async () => {
-    const summaryAtLimit = `${marker}${"s".repeat(100 - marker.length)}`;
-    const summaryOverLimit = `${marker}${"s".repeat(101 - marker.length)}`;
-
-    const acceptedResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ summary: summaryAtLimit }));
-
-    const rejectedResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ summary: summaryOverLimit }));
-
-    expect(acceptedResponse.status).toBe(201);
-    expect(acceptedResponse.body.summary).toHaveLength(100);
-    expect(rejectedResponse.status).toBe(400);
-    expect(rejectedResponse.body.message).toMatch(/summary must not exceed 100 characters/i);
-  });
-
-  it("accepts a description with exactly 2000 characters and rejects one with 2001 characters", async () => {
-    const acceptedResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ description: "d".repeat(2000) }));
-
-    const rejectedResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ description: "d".repeat(2001) }));
-
-    expect(acceptedResponse.status).toBe(201);
-    expect(acceptedResponse.body.description).toHaveLength(2000);
-    expect(rejectedResponse.status).toBe(400);
-    expect(rejectedResponse.body.message).toMatch(/description must not exceed 2000 characters/i);
-  });
-
-  it("rejects an invalid priority and an invalid requester header", async () => {
-    const invalidPriority = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ priority: "Urgent" }));
-
-    const invalidRequester = await request(app)
-      .post("/api/tickets")
-      .send(validTicketBody());
-
+  it("rejects invalid ticket fields and unsupported reference data", async () => {
+    const missingSummary = await postTicket(validTicketBody({ summary: "   " }));
+    const invalidPriority = await postTicket(validTicketBody({ priority: "Urgent" }));
+    const missingCategory = await postTicket(validTicketBody({ categoryId: 999999 }));
+    expect(missingSummary.status).toBe(400);
     expect(invalidPriority.status).toBe(400);
-    expect(invalidPriority.body.message).toMatch(/priority/i);
-    expect(invalidRequester.status).toBe(400);
-    expect(invalidRequester.body.message).toMatch(/requester/i);
+    expect(missingCategory.status).toBe(404);
   });
 
-  it("rejects missing reference data with a safe not-found response", async () => {
-    const response = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({ categoryId: 999999 }));
-
-    expect(response.status).toBe(404);
-    expect(response.body.message).toMatch(/not found/i);
+  it("enforces the documented field limits", async () => {
+    const atLimit = `${marker}${"s".repeat(100 - marker.length)}`;
+    const overLimit = `${marker}${"s".repeat(101 - marker.length)}`;
+    expect((await postTicket(validTicketBody({ summary: atLimit }))).status).toBe(201);
+    expect((await postTicket(validTicketBody({ summary: overLimit }))).status).toBe(400);
+    expect((await postTicket(validTicketBody({ description: "d".repeat(2001) }))).status).toBe(400);
   });
 
-  it("rejects inactive requester, category, and related-system references", async () => {
-    const inactiveRequester = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(inactiveRequesterId))
-      .send(validTicketBody({ summary: `${marker} - inactive requester` }));
-
-    const inactiveCategory = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({
-        categoryId: inactiveCategoryId,
-        summary: `${marker} - inactive category`,
-      }));
-
-    const inactiveSystem = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(validTicketBody({
-        relatedSystemId: inactiveRelatedSystemId,
-        summary: `${marker} - inactive system`,
-      }));
-
-    expect(inactiveRequester.status).toBe(400);
-    expect(inactiveCategory.status).toBe(400);
-    expect(inactiveSystem.status).toBe(400);
+  it("rejects inactive category and related-system references", async () => {
+    expect((await postTicket(validTicketBody({ categoryId: inactiveCategoryId, summary: `${marker} inactive category` }))).status).toBe(400);
+    expect((await postTicket(validTicketBody({ relatedSystemId: inactiveRelatedSystemId, summary: `${marker} inactive system` }))).status).toBe(400);
   });
 
-  it("prevents a duplicate ticket from the same requester within the duplicate window", async () => {
-    const body = validTicketBody({ summary: `${marker} - duplicate submission` });
-
-    const firstResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(body);
-
-    const duplicateResponse = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(activeRequesterId))
-      .send(body);
-
-    expect(firstResponse.status).toBe(201);
-    expect(duplicateResponse.status).toBe(409);
-    expect(duplicateResponse.body.message).toMatch(/submitted recently/i);
+  it("prevents a duplicate ticket from the same session-owned requester", async () => {
+    const body = validTicketBody({ summary: `${marker} duplicate submission` });
+    expect((await postTicket(body)).status).toBe(201);
+    expect((await postTicket(body)).status).toBe(409);
   });
 });

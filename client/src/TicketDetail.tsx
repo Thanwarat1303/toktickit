@@ -7,12 +7,11 @@ import {
   removeAttachment,
   uploadTicketAttachment,
   type AttachmentSummary,
-  type Requester,
   type TicketDetail as TicketDetailData,
 } from "./api.js";
 
 interface TicketDetailProps {
-  requester: Requester;
+  requester: { name: string };
   ticketId: number;
   onBack: () => void;
 }
@@ -54,7 +53,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setAttachmentError("");
 
     try {
-      const loadedAttachments = await getTicketAttachments(ticketId, requester.id);
+      const loadedAttachments = await getTicketAttachments(ticketId);
       setAttachments(loadedAttachments);
     } catch (caught) {
       setAttachmentError(
@@ -73,7 +72,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setLoadingTicket(true);
     setTicketError("");
 
-    getTicketDetail(ticketId, requester.id)
+    getTicketDetail(ticketId)
       .then((loadedTicket) => {
         if (!cancelled) setTicket(loadedTicket);
       })
@@ -94,11 +93,11 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     return () => {
       cancelled = true;
     };
-  }, [ticketId, requester.id]);
+  }, [ticketId]);
 
   useEffect(() => {
     void loadAttachments();
-  }, [ticketId, requester.id]);
+  }, [ticketId]);
 
   async function handleRemoveAttachment(attachment: AttachmentSummary) {
     const reason = window.prompt(
@@ -113,7 +112,6 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     try {
       const removedAttachment = await removeAttachment(
         attachment.id,
-        requester.id,
         reason
       );
 
@@ -161,7 +159,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setUploading(true);
 
     try {
-      await uploadTicketAttachment(ticketId, requester.id, selectedFile);
+      await uploadTicketAttachment(ticketId, selectedFile);
       setSelectedFile(null);
       setFileInputKey((currentKey) => currentKey + 1);
       setUploadSuccess("Attachment uploaded successfully.");
@@ -328,7 +326,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
                     <div className="attachment-actions">
                       <a
                         className="btn btn-outline-zen"
-                        href={attachmentDownloadUrl(attachment.id, requester.id)}
+                        href={attachmentDownloadUrl(attachment.id)}
                         target="_blank"
                         rel="noreferrer"
                       >

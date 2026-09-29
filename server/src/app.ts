@@ -14,6 +14,8 @@ import {
   publicUser,
   requireAuth,
   requireCsrf,
+  requirePasswordUpToDate,
+  requireRole,
   requireSameOrigin,
   setSessionCookie,
   type AuthenticatedRequest,
@@ -82,14 +84,14 @@ app.post("/api/auth/change-password", requireSameOrigin, requireAuth, requireCsr
     if (!valid) return authError(res, 400, "VALIDATION_ERROR", "Current password is incorrect.");
     const passwordHash = await hashPassword(newPassword);
     const user = await getPrisma().user.update({ where: { id: req.auth!.user.id }, data: { passwordHash, mustChangePassword: false } });
-    return res.status(200).json({ user: publicUser(user) });
+    return res.status(200).json({ user: publicUser(user), csrfToken: req.auth!.csrfToken });
   } catch {
     return authError(res, 500, "AUTH_ERROR", "Unable to change password.");
   }
 });
 
 // Issue 4 - Active category list
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", requireAuth, requirePasswordUpToDate, async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -117,7 +119,7 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 // Lab 2, Issue 15 dependency - Active related-system list
 // The Create Ticket form must only offer systems that can be used to create a
 // ticket. The POST route performs the same check again as the security guard.
-app.get("/api/related-systems", async (_req: Request, res: Response) => {
+app.get("/api/related-systems", requireAuth, requirePasswordUpToDate, async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -142,36 +144,8 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
   }
 });
 
-// Lab 2, Issue 13 - Active Development Requester list
-app.get("/api/requesters", async (_req: Request, res: Response) => {
-  try {
-    const prisma = getPrisma();
-
-    const requesters = await prisma.requester.findMany({
-      where: {
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-      orderBy: {
-        id: "asc",
-      },
-    });
-
-    res.status(200).json(requesters);
-  } catch {
-    res.status(500).json({
-      message: "Unable to load development requesters",
-    });
-  }
-});
-
-// Lab 2, Issue 14 - Create Ticket API
-// The selected development requester is passed in X-Requester-Id. In Lab 3
-// this temporary header will be replaced by the authenticated user identity.
+// The development requester selector is deliberately removed in Lab 3. A
+// Requester's profile is resolved from the authenticated User record only.
 const priorityValues: Record<string, Priority> = {
   Low: Priority.LOW,
   Medium: Priority.MEDIUM,
@@ -243,9 +217,12 @@ function queryPositiveInteger(value: unknown): number | undefined {
   return positiveInteger(parsed) ? parsed : undefined;
 }
 
-function requesterIdFromHeader(req: Request): number | undefined {
-  const requesterId = Number(req.header("X-Requester-Id"));
-  return positiveInteger(requesterId) ? requesterId : undefined;
+async function authenticatedRequesterId(req: AuthenticatedRequest): Promise<number | undefined> {
+  const requester = await getPrisma().requester.findUnique({
+    where: { userId: req.auth!.user.id },
+    select: { id: true, isActive: true },
+  });
+  return requester?.isActive ? requester.id : undefined;
 }
 
 function attachmentResponse(attachment: {
@@ -341,13 +318,13 @@ function parseMultipartFile(req: Request, body: Buffer): UploadedMultipartFile |
   return undefined;
 }
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
-  const requesterId = Number(req.header("X-Requester-Id"));
+app.post("/api/tickets", requireSameOrigin, requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const body = req.body ?? {};
   const { categoryId, relatedSystemId, summary, description, priority } = body;
 
-  if (!positiveInteger(requesterId)) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  if (!requesterId) {
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(categoryId)) {
@@ -460,11 +437,11 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
 // The temporary requester header is deliberately part of this query.  Even if
 // somebody changes the URL in the browser, the database query is scoped to the
 // selected requester and therefore cannot return another requester's tickets.
-app.get("/api/tickets", async (req: Request, res: Response) => {
-  const requesterId = Number(req.header("X-Requester-Id"));
+app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
 
-  if (!positiveInteger(requesterId)) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+  if (!requesterId) {
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   const search = queryString(req.query.search);
@@ -578,12 +555,12 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
 });
 
 // Lab 2, Issue 17 - Ticket detail and attachment inspection
-app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
-  const requesterId = requesterIdFromHeader(req);
+app.get("/api/tickets/:ticketId", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const ticketId = Number(req.params.ticketId);
 
   if (!requesterId) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(ticketId)) {
@@ -606,7 +583,7 @@ app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
     }
 
     if (ticket.requesterId !== requesterId) {
-      return res.status(403).json({ message: "You can only view your own tickets" });
+      return res.status(404).json({ message: "Ticket was not found" });
     }
 
     return res.status(200).json({
@@ -627,12 +604,12 @@ app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
-  const requesterId = requesterIdFromHeader(req);
+app.get("/api/tickets/:ticketId/attachments", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const ticketId = Number(req.params.ticketId);
 
   if (!requesterId) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(ticketId)) {
@@ -651,7 +628,7 @@ app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response
     }
 
     if (ticket.requesterId !== requesterId) {
-      return res.status(403).json({ message: "You can only view attachments for your own tickets" });
+      return res.status(404).json({ message: "Ticket was not found" });
     }
 
     const attachments = await prisma.attachment.findMany({
@@ -675,12 +652,12 @@ app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response
   }
 });
 
-app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
-  const requesterId = requesterIdFromHeader(req);
+app.post("/api/tickets/:ticketId/attachments", requireSameOrigin, requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const ticketId = Number(req.params.ticketId);
 
   if (!requesterId) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(ticketId)) {
@@ -715,7 +692,7 @@ app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Respons
     }
 
     if (ticket.requesterId !== requesterId) {
-      return res.status(403).json({ message: "You can only upload attachments to your own tickets" });
+      return res.status(404).json({ message: "Ticket was not found" });
     }
 
     const activeAttachmentCount = await prisma.attachment.count({
@@ -765,12 +742,12 @@ app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Respons
   }
 });
 
-app.get("/api/attachments/:attachmentId/download", async (req: Request, res: Response) => {
-  const requesterId = requesterIdFromHeader(req) ?? queryPositiveInteger(req.query.requesterId);
+app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const attachmentId = Number(req.params.attachmentId);
 
   if (!requesterId) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(attachmentId)) {
@@ -789,7 +766,7 @@ app.get("/api/attachments/:attachmentId/download", async (req: Request, res: Res
     }
 
     if (attachment.ticket.requesterId !== requesterId) {
-      return res.status(403).json({ message: "You can only download your own attachments" });
+      return res.status(404).json({ message: "Attachment was not found" });
     }
 
     if (attachment.removedAt) {
@@ -811,13 +788,13 @@ app.get("/api/attachments/:attachmentId/download", async (req: Request, res: Res
   }
 });
 
-app.delete("/api/attachments/:attachmentId", async (req: Request, res: Response) => {
-  const requesterId = requesterIdFromHeader(req);
+app.delete("/api/attachments/:attachmentId", requireSameOrigin, requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const requesterId = await authenticatedRequesterId(req);
   const attachmentId = Number(req.params.attachmentId);
   const removalReason = typeof req.body?.removalReason === "string" ? req.body.removalReason.trim() : "";
 
   if (!requesterId) {
-    return res.status(400).json({ message: "A valid X-Requester-Id is required" });
+    return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
   if (!positiveInteger(attachmentId)) {
@@ -840,7 +817,7 @@ app.delete("/api/attachments/:attachmentId", async (req: Request, res: Response)
     }
 
     if (attachment.ticket.requesterId !== requesterId) {
-      return res.status(403).json({ message: "You can only remove your own attachments" });
+      return res.status(404).json({ message: "Attachment was not found" });
     }
 
     if (attachment.removedAt) {

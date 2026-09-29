@@ -6,12 +6,9 @@ import {
   type Category,
   type CreatedTicket,
   type RelatedSystem,
-  type Requester,
 } from "./api.js";
 
-interface CreateTicketFormProps {
-  requester: Requester;
-}
+interface CreateTicketFormProps { requester: { name: string }; }
 
 type LoadState = "loading" | "ready" | "error";
 type FieldName = "categoryId" | "relatedSystemId" | "summary" | "description" | "priority";
@@ -78,7 +75,6 @@ export default function CreateTicketForm({ requester }: CreateTicketFormProps) {
     setIsSubmitting(true);
     try {
       const ticket = await createTicket({
-        requesterId: requester.id,
         categoryId: Number(form.categoryId),
         relatedSystemId: Number(form.relatedSystemId),
         summary: form.summary.trim(),
