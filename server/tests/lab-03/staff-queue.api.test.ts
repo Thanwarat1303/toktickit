@@ -12,6 +12,7 @@ let requesterId: number;
 let requesterUserId: number;
 let ticketId: number;
 let staffAgent: request.Agent;
+let requesterAgent: request.Agent;
 
 beforeAll(async () => {
   const passwordHash = await hashPassword(password);
@@ -29,11 +30,13 @@ beforeAll(async () => {
   ticketId = ticket.id;
   staffAgent = request.agent(app);
   await staffAgent.post("/api/auth/login").send({ email: staff.email, password }).expect(200);
+  requesterAgent = request.agent(app);
+  await requesterAgent.post("/api/auth/login").send({ email: requester.email, password }).expect(200);
 });
 
 afterAll(async () => {
   await prisma.ticket.deleteMany({ where: { id: ticketId } });
-  await prisma.session.deleteMany({ where: { userId: { in: [staffId, requesterId] } } });
+  await prisma.session.deleteMany({ where: { userId: { in: [staffId, requesterUserId] } } });
   await prisma.requester.deleteMany({ where: { id: requesterId } });
   await prisma.user.deleteMany({ where: { id: { in: [staffId, requesterUserId] } } });
   await prisma.$disconnect();
@@ -42,6 +45,10 @@ afterAll(async () => {
 describe("GET /api/staff/tickets", () => {
   it("requires an IT Staff session", async () => {
     expect((await request(app).get("/api/staff/tickets")).status).toBe(401);
+  });
+
+  it("rejects an authenticated Requester", async () => {
+    expect((await requesterAgent.get("/api/staff/tickets")).status).toBe(403);
   });
 
   it("returns a searchable shared queue with owner and requester display data", async () => {
