@@ -50,7 +50,7 @@ describe("Ticket Detail", () => {
     expect(screen.getByText("wifi-error.png")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Download/i })).toHaveAttribute(
       "href",
-      "http://localhost:3000/api/attachments/5/download?requesterId=1"
+      "http://localhost:3000/api/attachments/5/download"
     );
   });
 
@@ -85,7 +85,7 @@ describe("Ticket Detail", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Remove/i }));
 
     await waitFor(() => {
-      expect(api.removeAttachment).toHaveBeenCalledWith(5, 1, "Wrong file");
+      expect(api.removeAttachment).toHaveBeenCalledWith(5, "Wrong file");
     });
     expect(await screen.findByText(/Wrong file/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Download/i })).not.toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("Ticket Detail", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upload attachment/i }));
 
     await waitFor(() => {
-      expect(api.uploadTicketAttachment).toHaveBeenCalledWith(10, 1, uploadFile);
+      expect(api.uploadTicketAttachment).toHaveBeenCalledWith(10, uploadFile);
     });
     expect(await screen.findByText("Attachment uploaded successfully.")).toBeInTheDocument();
     expect(await screen.findByText("ticket-evidence.pdf")).toBeInTheDocument();

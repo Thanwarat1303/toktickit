@@ -37,7 +37,7 @@ describe("Create Ticket form", () => {
     expect(createTicket).not.toHaveBeenCalled();
   });
 
-  it("submits valid values as the active requester and shows the returned ticket number", async () => {
+  it("submits valid values without a client-controlled requester id and shows the returned ticket number", async () => {
     mockReferenceData();
     vi.spyOn(api, "createTicket").mockResolvedValue({
       id: 1,
@@ -60,7 +60,7 @@ describe("Create Ticket form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
 
     expect(await screen.findByText("TK-000001")).toBeInTheDocument();
-    expect(api.createTicket).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 1 }));
+    expect(api.createTicket).toHaveBeenCalledWith(expect.not.objectContaining({ requesterId: expect.anything() }));
   });
 
   it("shows a busy disabled submit button while ticket creation is in progress", async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCurrentUser, logout, type AuthSession, type Requester } from "./api.js";
+import { getCurrentUser, logout, type AuthSession, type AuthUser } from "./api.js";
 import Login from "./Login.js";
 import ChangePassword from "./ChangePassword.js";
 import CreateTicketForm from "./CreateTicketForm.js";
@@ -27,6 +27,6 @@ export default function App() {
   </div>;
 }
 
-function RequesterWorkspace({ requester, view, selectedTicketId, onView, onOpen, onBack }: { requester: Requester; view: "create" | "tickets"; selectedTicketId: number | null; onView: (view: "create" | "tickets") => void; onOpen: (id: number) => void; onBack: () => void }) {
+function RequesterWorkspace({ requester, view, selectedTicketId, onView, onOpen, onBack }: { requester: AuthUser; view: "create" | "tickets"; selectedTicketId: number | null; onView: (view: "create" | "tickets") => void; onOpen: (id: number) => void; onBack: () => void }) {
   return <><section className="selected-card"><div><p className="eyebrow mb-2">Requester workspace</p><h1 className="h2 mb-1">Welcome, {requester.name}</h1><p className="text-secondary mb-0">Create and follow your own support requests.</p></div></section><nav className="app-nav" aria-label="Ticket views"><button className={view === "create" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => { onView("create"); onBack(); }}>New Ticket</button><button className={view === "tickets" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => onView("tickets")}>My Tickets</button></nav>{view === "create" ? <CreateTicketForm requester={requester} /> : selectedTicketId ? <TicketDetail requester={requester} ticketId={selectedTicketId} onBack={onBack} /> : <MyTickets requester={requester} onOpenTicket={onOpen} />}</>;
 }

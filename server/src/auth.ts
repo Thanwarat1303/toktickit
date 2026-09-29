@@ -123,6 +123,27 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
   }
 }
 
+// Authorization always comes from the server-side session, never from a
+// role/id supplied by the browser. Keep this after requireAuth in route
+// middleware so callers get 401 before a role check is attempted.
+export function requireRole(...roles: UserRole[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.auth || !roles.includes(req.auth.user.role)) {
+      return authError(res, 403, "FORBIDDEN", "You do not have permission to perform this action.");
+    }
+    return next();
+  };
+}
+
+// A first-login session may only bootstrap itself, change its password, or
+// log out. This must be enforced by the API as well as the UI.
+export function requirePasswordUpToDate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (req.auth?.user.mustChangePassword) {
+    return authError(res, 403, "PASSWORD_CHANGE_REQUIRED", "You must change your password before using the application.");
+  }
+  return next();
+}
+
 export function requireCsrf(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.auth || !secureEqual(req.header("X-CSRF-Token"), req.auth.csrfToken)) {
     return authError(res, 403, "CSRF_MISMATCH", "A valid CSRF token is required.");
