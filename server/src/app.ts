@@ -828,35 +828,37 @@ function communicationResponse(entry: { id: number; ticketId: number; body: stri
 app.get("/api/tickets/:ticketId/comments", requireAuth, requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
-  if (!(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "Ticket was not found");
-  const comments = await getPrisma().ticketComment.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-  return res.status(200).json(comments.map(communicationResponse));
+  try {
+    const prisma = getPrisma();
+    if (!(await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }))) return res.status(404).json({ message: "Ticket was not found" });
+    if (!(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "Ticket was not found");
+    const comments = await prisma.ticketComment.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    return res.status(200).json(comments.map(communicationResponse));
+  } catch { return res.status(500).json({ message: "Unable to load comments" }); }
 });
 
 app.post("/api/tickets/:ticketId/comments", requireSameOrigin, requireAuth, requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId); const content = communicationBody(req.body?.content);
   if (!positiveInteger(ticketId) || !content) return res.status(400).json({ message: "Comment content must be 1 to 2000 characters." });
-  if (req.auth!.user.role === "ADMINISTRATOR" || !(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "You do not have permission to post this comment.");
-  const comment = await getPrisma().ticketComment.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
-  return res.status(201).json(communicationResponse(comment));
+  try {
+    const prisma = getPrisma();
+    if (!(await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }))) return res.status(404).json({ message: "Ticket was not found" });
+    if (req.auth!.user.role === "ADMINISTRATOR" || !(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "You do not have permission to post this comment.");
+    const comment = await prisma.ticketComment.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
+    return res.status(201).json(communicationResponse(comment));
+  } catch { return res.status(500).json({ message: "Unable to post comment" }); }
 });
 
 app.get("/api/tickets/:ticketId/notes", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
-  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-  if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-  const notes = await getPrisma().internalNote.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-  return res.status(200).json(notes.map(communicationResponse));
+  try { const prisma = getPrisma(); const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }); if (!ticket) return res.status(404).json({ message: "Ticket was not found" }); const notes = await prisma.internalNote.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }); return res.status(200).json(notes.map(communicationResponse)); } catch { return res.status(500).json({ message: "Unable to load notes" }); }
 });
 
 app.post("/api/tickets/:ticketId/notes", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId); const content = communicationBody(req.body?.content);
   if (!positiveInteger(ticketId) || !content) return res.status(400).json({ message: "Note content must be 1 to 2000 characters." });
-  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-  if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-  const note = await getPrisma().internalNote.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
-  return res.status(201).json(communicationResponse(note));
+  try { const prisma = getPrisma(); const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }); if (!ticket) return res.status(404).json({ message: "Ticket was not found" }); const note = await prisma.internalNote.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } }); return res.status(201).json(communicationResponse(note)); } catch { return res.status(500).json({ message: "Unable to post note" }); }
 });
 
 // Lab 2, Issue 17 - Ticket detail and attachment inspection

@@ -63,6 +63,18 @@ afterAll(async () => {
 });
 
 describe("IT Staff ticket operations", () => {
+  it("returns 404, without crashing, when staff posts a comment to a missing ticket", async () => {
+    await staffAgent
+      .post("/api/tickets/999999999/comments")
+      .set("Origin", origin)
+      .set("X-CSRF-Token", staffCsrfToken)
+      .send({ content: "This must not create an orphan comment." })
+      .expect(404);
+
+    // Regression guard: the server remains available after the rejected FK target.
+    await request(app).get("/api/health").expect(200);
+  });
+
   it("returns the full staff detail only to authenticated IT Staff", async () => {
     await request(app).get(`/api/staff/tickets/${ticketId}`).expect(401);
     await requesterAgent.get(`/api/staff/tickets/${ticketId}`).expect(403);
