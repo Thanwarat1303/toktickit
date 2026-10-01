@@ -152,6 +152,39 @@ const priorityValues: Record<string, Priority> = {
   High: Priority.HIGH,
 };
 
+const itPriorityValues: Record<string, Priority> = {
+  ...priorityValues,
+  Urgent: Priority.URGENT,
+};
+
+const ticketStatuses = [
+  "New",
+  "Open",
+  "In Progress",
+  "Waiting for Requester",
+  "Resolved",
+  "Closed",
+  "Reopened",
+  "Cancelled",
+] as const;
+
+const allowedStaffTransitions: Record<(typeof ticketStatuses)[number], readonly string[]> = {
+  New: ["Open", "Cancelled"],
+  Open: ["In Progress", "Waiting for Requester", "Cancelled"],
+  "In Progress": ["Waiting for Requester", "Resolved", "Cancelled"],
+  "Waiting for Requester": ["In Progress", "Resolved", "Cancelled"],
+  Resolved: ["Closed", "Reopened"],
+  Closed: ["Reopened"],
+  Reopened: ["In Progress", "Cancelled"],
+  Cancelled: ["Reopened"],
+};
+
+const confirmationRequiredStatuses = new Set(["Resolved", "Closed", "Reopened", "Cancelled"]);
+
+function isTicketStatus(value: unknown): value is (typeof ticketStatuses)[number] {
+  return typeof value === "string" && ticketStatuses.includes(value as (typeof ticketStatuses)[number]);
+}
+
 const duplicateWindowMs = 60_000;
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 const maxMultipartRequestBytes = maxAttachmentSizeBytes + 1024 * 1024;
@@ -577,10 +610,10 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
   if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || !page || !pageSize || pageSize > 50) {
     return res.status(400).json({ message: "Pagination and filters must use valid positive integers (ownerId 0 means unassigned)" });
   }
-  if (itPriorityText && !(itPriorityText in priorityValues)) {
-    return res.status(400).json({ message: "itPriority must be Low, Medium, or High" });
+  if (itPriorityText && !(itPriorityText in itPriorityValues)) {
+    return res.status(400).json({ message: "itPriority must be Low, Medium, High, or Urgent" });
   }
-  if (status && !["New", "Open", "In Progress", "Waiting for Requester", "Resolved", "Closed", "Reopened", "Cancelled"].includes(status)) {
+  if (status && !isTicketStatus(status)) {
     return res.status(400).json({ message: "status is not valid" });
   }
   if (!["createdAt", "updatedAt", "itPriority", "status"].includes(sortBy) || !["asc", "desc"].includes(sortDir)) {
@@ -596,7 +629,7 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
       ] } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
-      ...(itPriorityText ? { itPriority: priorityValues[itPriorityText] } : {}),
+      ...(itPriorityText ? { itPriority: itPriorityValues[itPriorityText] } : {}),
       ...(status ? { currentStatus: status } : {}),
       ...(ownerId === 0 ? { assignedStaffId: null } : ownerId ? { assignedStaffId: ownerId } : {}),
     };
@@ -631,6 +664,144 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
     });
   } catch {
     return res.status(500).json({ message: "Unable to load the staff ticket queue" });
+  }
+});
+
+// Issue #34 — operational ticket actions are scoped to authenticated IT Staff.
+// The browser never chooses the claiming identity; it is always req.auth.user.
+app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        requester: { select: { id: true, name: true, email: true } },
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+        assignedStaff: { select: { id: true, name: true, email: true } },
+        attachments: {
+          select: { id: true, ticketId: true, originalFilename: true, mimeType: true, sizeBytes: true, createdAt: true, removedAt: true, removalReason: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        },
+        comments: { include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        internalNotes: { include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      },
+    });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+
+    return res.status(200).json({
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      requester: ticket.requester,
+      category: ticket.category,
+      relatedSystem: ticket.relatedSystem,
+      summary: ticket.summary,
+      description: ticket.description,
+      priority: formatPriority(ticket.priority),
+      itPriority: formatPriority(ticket.itPriority),
+      status: ticket.currentStatus,
+      owner: ticket.assignedStaff,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+      attachments: ticket.attachments.map(attachmentResponse),
+      publicComments: ticket.comments.map((comment) => ({ id: comment.id, ticketId: comment.ticketId, author: comment.author, content: comment.body, createdAt: comment.createdAt })),
+      internalNotes: ticket.internalNotes.map((note) => ({ id: note.id, ticketId: note.ticketId, author: note.author, content: note.body, createdAt: note.createdAt })),
+    });
+  } catch {
+    return res.status(500).json({ message: "Unable to load staff ticket details" });
+  }
+});
+
+app.post("/api/staff/tickets/:ticketId/claim", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+
+  try {
+    const prisma = getPrisma();
+    const result = await prisma.ticket.updateMany({ where: { id: ticketId, assignedStaffId: null }, data: { assignedStaffId: req.auth!.user.id } });
+    if (result.count === 1) {
+      const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
+      return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    }
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+    if (ticket.assignedStaffId === req.auth!.user.id) return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    return res.status(409).json({ message: "Ticket is already claimed by another staff member" });
+  } catch {
+    return res.status(500).json({ message: "Unable to claim ticket" });
+  }
+});
+
+app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const ownerId = req.body?.ownerId;
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (ownerId !== null && !positiveInteger(ownerId)) return res.status(400).json({ message: "ownerId must be an active IT Staff id or null" });
+
+  try {
+    const prisma = getPrisma();
+    if (ownerId !== null) {
+      const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
+      if (!owner || !owner.isActive || owner.role !== "IT_STAFF") {
+        return res.status(400).json({ message: "ownerId must identify an active IT Staff user" });
+      }
+    }
+
+    const ticket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { assignedStaffId: ownerId },
+      include: { assignedStaff: { select: { id: true, name: true } } },
+    }).catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return null;
+      throw error;
+    });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+    return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+  } catch {
+    return res.status(500).json({ message: "Unable to update ticket owner" });
+  }
+});
+
+app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const body = req.body ?? {};
+  const hasItPriority = Object.prototype.hasOwnProperty.call(body, "itPriority");
+  const hasStatus = Object.prototype.hasOwnProperty.call(body, "status");
+  const itPriority = body.itPriority;
+  const status = body.status;
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (!hasItPriority && !hasStatus) return res.status(400).json({ message: "Provide itPriority, status, or both" });
+  if (hasItPriority && (typeof itPriority !== "string" || !(itPriority in itPriorityValues))) {
+    return res.status(400).json({ message: "itPriority must be Low, Medium, High, or Urgent" });
+  }
+  if (hasStatus && !isTicketStatus(status)) return res.status(400).json({ message: "status is not valid" });
+  if (hasStatus && confirmationRequiredStatuses.has(status) && body.confirm !== true) {
+    return res.status(400).json({ message: `Changing a ticket to ${status} requires confirm: true` });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+    if (hasStatus && !allowedStaffTransitions[ticket.currentStatus as (typeof ticketStatuses)[number]]?.includes(status)) {
+      return res.status(409).json({ message: `Cannot transition from ${ticket.currentStatus} to ${status}` });
+    }
+
+    const update = await prisma.ticket.updateMany({
+      where: { id: ticketId, ...(hasStatus ? { currentStatus: ticket.currentStatus } : {}) },
+      data: {
+        ...(hasItPriority ? { itPriority: itPriorityValues[itPriority] } : {}),
+        ...(hasStatus ? { currentStatus: status } : {}),
+      },
+    });
+    if (update.count !== 1) return res.status(409).json({ message: "Ticket workflow was changed by another request; refresh and try again" });
+    const updatedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, itPriority: true, currentStatus: true, updatedAt: true } });
+    return res.status(200).json({ id: updatedTicket.id, itPriority: formatPriority(updatedTicket.itPriority), status: updatedTicket.currentStatus, updatedAt: updatedTicket.updatedAt });
+  } catch {
+    return res.status(500).json({ message: "Unable to update ticket workflow" });
   }
 });
 

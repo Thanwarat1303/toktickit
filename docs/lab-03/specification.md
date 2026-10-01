@@ -81,7 +81,7 @@ Email delivery, invitations, password-reset email, MFA, social login, SSO, self-
 | Open | In Progress, Waiting for Requester, Cancelled | IT Staff | None for In Progress/Waiting; explicit staff confirmation for Cancelled |
 | In Progress | Waiting for Requester, Resolved, Cancelled | IT Staff | Explicit staff confirmation for Resolved/Cancelled |
 | Waiting for Requester | In Progress, Resolved, Cancelled | IT Staff | Explicit staff confirmation for Resolved/Cancelled |
-| Resolved | Closed, Reopened | IT Staff | Explicit staff confirmation for Closed; none for Reopened |
+| Resolved | Closed, Reopened | IT Staff | Explicit staff confirmation for either target |
 | Closed | Reopened | IT Staff | Explicit staff confirmation |
 | Reopened | In Progress, Cancelled | IT Staff | None for In Progress; explicit staff confirmation for Cancelled |
 | Cancelled | Reopened | IT Staff | Explicit staff confirmation |
