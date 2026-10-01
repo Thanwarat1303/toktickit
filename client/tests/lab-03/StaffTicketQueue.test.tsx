@@ -38,6 +38,7 @@ describe("Staff Ticket Queue", () => {
     expect(getStaffTickets).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" });
     expect(screen.getByText("1 tickets")).toBeInTheDocument();
     expect(screen.getAllByText("IT Staff").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("option", { name: "Urgent" }).length).toBeGreaterThan(0);
   });
 
   it("sends a new queue query when staff search", async () => {

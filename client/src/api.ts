@@ -109,7 +109,7 @@ export interface StaffTicketSummary {
   ticketNumber: string;
   summary: string;
   priority: "Low" | "Medium" | "High";
-  itPriority: "Low" | "Medium" | "High";
+  itPriority: "Low" | "Medium" | "High" | "Urgent";
   status: string;
   category: Category;
   relatedSystem: RelatedSystem;
@@ -128,7 +128,7 @@ export interface StaffTicketQueueQuery {
   search?: string;
   categoryId?: number;
   relatedSystemId?: number;
-  itPriority?: "Low" | "Medium" | "High";
+  itPriority?: "Low" | "Medium" | "High" | "Urgent";
   status?: string;
   ownerId?: number;
   sortBy?: "createdAt" | "updatedAt" | "itPriority" | "status";

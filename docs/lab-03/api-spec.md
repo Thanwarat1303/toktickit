@@ -54,7 +54,7 @@ Requires IT Staff. Request: `{ "ownerId": number | null }`. The owner must be an
 
 ### `PATCH /api/staff/tickets/:id/workflow`
 
-Requires IT Staff. Request may contain `{ "itPriority": "Low"|"Medium"|"High"|"Urgent", "status": ... }`. Invalid transitions return `409`; invalid values return `400`.
+Requires IT Staff. Request may contain `{ "itPriority": "Low"|"Medium"|"High"|"Urgent", "status": ..., "confirm": true }`. A target status of `Resolved`, `Closed`, `Reopened`, or `Cancelled` requires `confirm: true`; missing or false confirmation returns `400` before transition legality is evaluated. Invalid transitions return `409`; invalid values return `400`.
 
 ## Comments and Notes
 
