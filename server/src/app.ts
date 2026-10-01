@@ -805,6 +805,60 @@ app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAut
   }
 });
 
+// Issue #35 — communication is deliberately separate from workflow actions.
+// Requesters may access only their own ticket; IT Staff can access the shared
+// queue.  Internal notes never pass through a Requester response path.
+const communicationLimit = 2000;
+async function canAccessTicketCommunication(req: AuthenticatedRequest, ticketId: number, allowRequester: boolean) {
+  const role = req.auth!.user.role;
+  if (role === "IT_STAFF" || role === "ADMINISTRATOR") return true;
+  if (!allowRequester || role !== "REQUESTER") return false;
+  const requesterId = await authenticatedRequesterId(req);
+  return !!requesterId && !!(await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } }));
+}
+function communicationBody(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const content = value.trim();
+  return content.length > 0 && content.length <= communicationLimit ? content : undefined;
+}
+function communicationResponse(entry: { id: number; ticketId: number; body: string; createdAt: Date; author: { id: number; name: string } }) {
+  return { id: entry.id, ticketId: entry.ticketId, author: entry.author, content: entry.body, createdAt: entry.createdAt };
+}
+
+app.get("/api/tickets/:ticketId/comments", requireAuth, requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (!(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "Ticket was not found");
+  const comments = await getPrisma().ticketComment.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return res.status(200).json(comments.map(communicationResponse));
+});
+
+app.post("/api/tickets/:ticketId/comments", requireSameOrigin, requireAuth, requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId); const content = communicationBody(req.body?.content);
+  if (!positiveInteger(ticketId) || !content) return res.status(400).json({ message: "Comment content must be 1 to 2000 characters." });
+  if (req.auth!.user.role === "ADMINISTRATOR" || !(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "You do not have permission to post this comment.");
+  const comment = await getPrisma().ticketComment.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
+  return res.status(201).json(communicationResponse(comment));
+});
+
+app.get("/api/tickets/:ticketId/notes", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+  const notes = await getPrisma().internalNote.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return res.status(200).json(notes.map(communicationResponse));
+});
+
+app.post("/api/tickets/:ticketId/notes", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId); const content = communicationBody(req.body?.content);
+  if (!positiveInteger(ticketId) || !content) return res.status(400).json({ message: "Note content must be 1 to 2000 characters." });
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+  const note = await getPrisma().internalNote.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
+  return res.status(201).json(communicationResponse(note));
+});
+
 // Lab 2, Issue 17 - Ticket detail and attachment inspection
 app.get("/api/tickets/:ticketId", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const requesterId = await authenticatedRequesterId(req);
