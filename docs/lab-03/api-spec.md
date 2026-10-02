@@ -44,6 +44,10 @@ Requires IT Staff authorization. Query parameters: `search`, suitable status/pri
 
 Requires IT Staff authorization. Returns ticket details, owner, workflow fields, public comments, permitted internal notes, and attachment metadata. Missing ticket returns `404`.
 
+### `GET /api/staff/assignable-users`
+
+Requires IT Staff authorization. Returns active IT Staff users only, with `id`, `name`, and `email`, ordered by name. The endpoint supports the owner reassignment control and never exposes password or session fields.
+
 ### `POST /api/staff/tickets/:id/claim`
 
 Requires IT Staff. Claims the ticket for the current staff user. Conflicting ownership returns `409`.

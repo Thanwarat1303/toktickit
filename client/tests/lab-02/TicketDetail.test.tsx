@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import TicketDetail from "../../src/TicketDetail.js";
 import * as api from "../../src/api.js";
@@ -24,6 +24,12 @@ const ticket: api.TicketDetail = {
 };
 
 describe("Ticket Detail", () => {
+  // Public comments were added after this Lab 2 component test was written.
+  // Keep the legacy tests focused on their ticket/attachment assertions.
+  beforeEach(() => {
+    vi.spyOn(api, "getTicketComments").mockResolvedValue([]);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });

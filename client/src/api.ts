@@ -138,6 +138,31 @@ export interface StaffTicketQueueQuery {
   pageSize?: number;
 }
 
+export interface StaffTicketDetail extends Omit<StaffTicketSummary, "requesterName" | "owner"> {
+  requester: Requester;
+  owner: { id: number; name: string; email: string } | null;
+  attachments: AttachmentSummary[];
+  publicComments: TicketCommunication[];
+  internalNotes: TicketCommunication[];
+  description: string;
+}
+
+export interface AssignableStaffUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export type WorkflowStatus =
+  | "New"
+  | "Open"
+  | "In Progress"
+  | "Waiting for Requester"
+  | "Resolved"
+  | "Closed"
+  | "Reopened"
+  | "Cancelled";
+
 export class ApiRequestError extends Error {
   constructor(message: string) {
     super(message);
@@ -378,4 +403,43 @@ export async function getStaffTickets(query: StaffTicketQueueQuery): Promise<Sta
   const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
   if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"));
   return response.json();
+}
+
+export async function getStaffTicketDetail(ticketId: number): Promise<StaffTicketDetail> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load staff ticket details"));
+  return response.json();
+}
+
+async function staffMutation<T>(path: string, method: "POST" | "PATCH", csrfToken: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to update ticket"));
+  return response.json() as Promise<T>;
+}
+
+export function claimStaffTicket(ticketId: number, csrfToken: string) {
+  return staffMutation<{ id: number; owner: { id: number; name: string } | null; updatedAt: string }>(`/api/staff/tickets/${ticketId}/claim`, "POST", csrfToken);
+}
+
+export function updateStaffTicketOwner(ticketId: number, ownerId: number | null, csrfToken: string) {
+  return staffMutation<{ id: number; owner: { id: number; name: string } | null; updatedAt: string }>(`/api/staff/tickets/${ticketId}/owner`, "PATCH", csrfToken, { ownerId });
+}
+
+export function updateStaffTicketWorkflow(ticketId: number, input: { itPriority?: StaffTicketSummary["itPriority"]; status?: WorkflowStatus; confirm?: true }, csrfToken: string) {
+  return staffMutation<{ id: number; itPriority: StaffTicketSummary["itPriority"]; status: WorkflowStatus; updatedAt: string }>(`/api/staff/tickets/${ticketId}/workflow`, "PATCH", csrfToken, input);
+}
+
+export async function getAssignableStaffUsers(): Promise<AssignableStaffUser[]> {
+  const response = await fetch(`${API_URL}/api/staff/assignable-users`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load assignable staff"));
+  return response.json();
+}
+
+export function postInternalNote(ticketId: number, content: string, csrfToken: string) {
+  return staffMutation<TicketCommunication>(`/api/tickets/${ticketId}/notes`, "POST", csrfToken, { content });
 }

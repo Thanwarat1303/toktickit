@@ -667,6 +667,22 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
   }
 });
 
+// A detail screen needs a safe, canonical list of people who may own a ticket.
+// It is deliberately an IT Staff-only lookup and exposes only the fields needed
+// to make an assignment; it must appear before the :ticketId route below.
+app.get("/api/staff/assignable-users", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const users = await getPrisma().user.findMany({
+      where: { role: "IT_STAFF", isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+    return res.status(200).json(users);
+  } catch {
+    return res.status(500).json({ message: "Unable to load assignable staff" });
+  }
+});
+
 // Issue #34 — operational ticket actions are scoped to authenticated IT Staff.
 // The browser never chooses the claiming identity; it is always req.auth.user.
 app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
