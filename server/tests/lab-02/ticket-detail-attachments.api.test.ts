@@ -4,6 +4,7 @@ import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Priority } from "@prisma/client";
 import { app } from "../../src/app.js";
+import { hashPassword } from "../../src/auth.js";
 import { getPrisma } from "../../src/prisma.js";
 import { TEST_ORIGIN, createRequesterSession, removeRequesterSession, type RequesterSessionFixture } from "../helpers/requester-session.js";
 
@@ -14,6 +15,8 @@ const storedFilename = `feature-17-${Date.now()}.txt`;
 const fileBytes = Buffer.from("TokTickIT attachment download test");
 let owner: RequesterSessionFixture;
 let other: RequesterSessionFixture;
+let staffAgent: request.Agent;
+let staffUserId: number;
 let ticketId: number;
 let attachmentId: number;
 
@@ -24,6 +27,12 @@ function upload(ticket: number, file: Buffer, filename: string, contentType: str
 
 beforeAll(async () => {
   [owner, other] = await Promise.all([createRequesterSession("attachments-owner"), createRequesterSession("attachments-other")]);
+  const staffEmail = `attachments-staff-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  const staffPassword = "FixturePass123!";
+  const staff = await prisma.user.create({ data: { name: "Attachment staff fixture", email: staffEmail, passwordHash: await hashPassword(staffPassword), role: "IT_STAFF", mustChangePassword: false } });
+  staffUserId = staff.id;
+  staffAgent = request.agent(app);
+  await staffAgent.post("/api/auth/login").send({ email: staffEmail, password: staffPassword }).expect(200);
   const [category, relatedSystem] = await Promise.all([prisma.category.findFirstOrThrow({ where: { isActive: true } }), prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } })]);
   const ticket = await prisma.ticket.create({ data: { ticketNumber: `TK-F17-${Date.now()}`, requesterId: owner.requesterId, categoryId: category.id, relatedSystemId: relatedSystem.id, summary: `${marker} ticket detail`, description: "Attachment fixture.", priority: Priority.HIGH, currentStatus: "New" } });
   ticketId = ticket.id;
@@ -37,6 +46,8 @@ afterAll(async () => {
   await prisma.attachment.deleteMany({ where: { ticket: { summary: { startsWith: marker } } } });
   await prisma.ticket.deleteMany({ where: { summary: { startsWith: marker } } });
   for (const attachment of attachments) { try { unlinkSync(path.join(uploadDir, attachment.storedFilename)); } catch { /* cleanup */ } }
+  await prisma.session.deleteMany({ where: { userId: staffUserId } });
+  await prisma.user.delete({ where: { id: staffUserId } });
   await Promise.all([removeRequesterSession(owner), removeRequesterSession(other)]);
   await prisma.$disconnect();
 });
@@ -59,6 +70,12 @@ describe("ticket detail and attachments", () => {
     const otherUpload = await other.agent.post(`/api/tickets/${ticketId}/attachments`).set("Origin", TEST_ORIGIN).set("X-CSRF-Token", other.csrfToken).attach("file", Buffer.from("%PDF"), { filename: "other.pdf", contentType: "application/pdf" });
     expect(noCsrf.status).toBe(403);
     expect(otherUpload.status).toBe(404);
+  });
+
+  it("allows IT Staff to download an active attachment from the shared queue", async () => {
+    const download = await staffAgent.get(`/api/attachments/${attachmentId}/download`);
+    expect(download.status).toBe(200);
+    expect(download.text).toBe(fileBytes.toString());
   });
 
   it("lists, downloads, and soft-removes an attachment for its owner", async () => {

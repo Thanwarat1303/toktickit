@@ -1065,11 +1065,14 @@ app.post("/api/tickets/:ticketId/attachments", requireSameOrigin, requireAuth, r
   }
 });
 
-app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
-  const requesterId = await authenticatedRequesterId(req);
+app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER", "IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  // Requesters remain scoped to their own tickets. IT Staff, who work from
+  // the shared queue, may download an active attachment from any ticket.
+  const isRequester = req.auth!.user.role === "REQUESTER";
+  const requesterId = isRequester ? await authenticatedRequesterId(req) : undefined;
   const attachmentId = Number(req.params.attachmentId);
 
-  if (!requesterId) {
+  if (isRequester && !requesterId) {
     return authError(res, 403, "FORBIDDEN", "Requester profile is not available.");
   }
 
@@ -1088,7 +1091,7 @@ app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQ
       return res.status(404).json({ message: "Attachment was not found" });
     }
 
-    if (attachment.ticket.requesterId !== requesterId) {
+    if (isRequester && attachment.ticket.requesterId !== requesterId) {
       return res.status(404).json({ message: "Attachment was not found" });
     }
 
