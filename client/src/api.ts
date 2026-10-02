@@ -83,6 +83,7 @@ export interface AttachmentSummary {
   removedAt: string | null;
   removalReason: string | null;
 }
+export interface TicketCommunication { id: number; ticketId: number; author: { id: number; name: string }; content: string; createdAt: string; }
 
 export interface TicketListResponse {
   items: TicketListItem[];
@@ -275,6 +276,18 @@ export async function getTicketAttachments(ticketId: number): Promise<Attachment
     throw new ApiRequestError(await getErrorMessage(response, "Unable to load attachments"));
   }
 
+  return response.json();
+}
+
+export async function getTicketComments(ticketId: number): Promise<TicketCommunication[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load comments"));
+  return response.json();
+}
+
+export async function postTicketComment(ticketId: number, content: string, csrfToken: string): Promise<TicketCommunication> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify({ content }) });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to post comment"));
   return response.json();
 }
 

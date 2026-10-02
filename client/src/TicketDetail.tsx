@@ -3,8 +3,11 @@ import {
   ApiRequestError,
   attachmentDownloadUrl,
   getTicketAttachments,
+  getTicketComments,
   getTicketDetail,
+  postTicketComment,
   removeAttachment,
+  type TicketCommunication,
   uploadTicketAttachment,
   type AttachmentSummary,
   type TicketDetail as TicketDetailData,
@@ -45,6 +48,10 @@ export default function TicketDetail({ requester, csrfToken, ticketId, onBack }:
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [comments, setComments] = useState<TicketCommunication[]>([]);
+  const [commentContent, setCommentContent] = useState("");
+  const [commentError, setCommentError] = useState("");
+  const [commentSending, setCommentSending] = useState(false);
 
   const activeAttachmentCount = attachments.filter((attachment) => !attachment.removedAt).length;
   const attachmentLimitReached = activeAttachmentCount >= maxActiveAttachments;
@@ -95,6 +102,20 @@ export default function TicketDetail({ requester, csrfToken, ticketId, onBack }:
       cancelled = true;
     };
   }, [ticketId]);
+
+  useEffect(() => {
+    getTicketComments(ticketId).then(setComments).catch(() => setCommentError("Unable to load comments."));
+  }, [ticketId]);
+
+  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = commentContent.trim();
+    if (!content || content.length > 2000) { setCommentError("Comment must be between 1 and 2000 characters."); return; }
+    setCommentSending(true); setCommentError("");
+    try { const comment = await postTicketComment(ticketId, content, csrfToken); setComments((items) => [...items, comment]); setCommentContent(""); }
+    catch (caught) { setCommentError(caught instanceof ApiRequestError ? caught.message : "Unable to post comment."); }
+    finally { setCommentSending(false); }
+  }
 
   useEffect(() => {
     void loadAttachments();
@@ -217,6 +238,12 @@ export default function TicketDetail({ requester, csrfToken, ticketId, onBack }:
             <h3 className="h5">Description</h3>
             <p className="mb-0">{ticket.description}</p>
           </div>
+          <section className="attachments-panel mt-4" aria-labelledby="comments-heading">
+            <p className="eyebrow mb-1">Conversation</p><h3 id="comments-heading" className="h5">Public Comments</h3>
+            {commentError && <div role="alert" className="state-panel state-panel--error">{commentError}</div>}
+            {comments.length === 0 ? <p className="text-secondary">No comments yet.</p> : <ul className="list-unstyled">{comments.map((comment) => <li key={comment.id} className="border-bottom py-2"><strong>{comment.author.name}</strong><span className="text-secondary small"> · {new Date(comment.createdAt).toLocaleString()}</span><p className="mb-0">{comment.content}</p></li>)}</ul>}
+            <form onSubmit={(event) => void handleCommentSubmit(event)}><label htmlFor="ticket-comment" className="form-label">Add a public comment</label><textarea id="ticket-comment" className="form-control" rows={3} maxLength={2000} value={commentContent} disabled={commentSending} onChange={(event) => setCommentContent(event.target.value)} /><button className="btn btn-primary mt-2" disabled={commentSending}>{commentSending ? "Posting…" : "Post comment"}</button></form>
+          </section>
         </>
       )}
 
