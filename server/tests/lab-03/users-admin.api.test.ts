@@ -34,6 +34,15 @@ describe("Administrator user management", () => {
   });
   it("API-20: blocks self-deactivation and preserves the final active Administrator", async () => {
     await adminAgent.patch(`/api/admin/users/${adminId}`).set("Origin", origin).set("X-CSRF-Token", csrf).send({ isActive: false }).expect(409);
-    await adminAgent.patch(`/api/admin/users/${adminId}`).set("Origin", origin).set("X-CSRF-Token", csrf).send({ role: "IT_STAFF" }).expect(409);
+    // Seed Administrators are deliberately not part of this fixture.  Suspend
+    // them only for this assertion, then restore their exact former states so
+    // the test proves the global invariant without leaking state to later files.
+    const otherAdmins = await prisma.user.findMany({ where: { role: "ADMINISTRATOR", id: { not: adminId } }, select: { id: true, isActive: true } });
+    try {
+      await prisma.user.updateMany({ where: { id: { in: otherAdmins.map((user) => user.id) } }, data: { isActive: false } });
+      await adminAgent.patch(`/api/admin/users/${adminId}`).set("Origin", origin).set("X-CSRF-Token", csrf).send({ role: "IT_STAFF" }).expect(409);
+    } finally {
+      await Promise.all(otherAdmins.map((user) => prisma.user.update({ where: { id: user.id }, data: { isActive: user.isActive } })));
+    }
   });
 });
