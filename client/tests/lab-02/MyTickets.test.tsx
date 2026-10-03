@@ -20,12 +20,13 @@ function mockTickets() {
 describe("My Tickets", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("loads the active requester's ticket list", async () => {
+  it("loads the session-scoped ticket list without a client requester id", async () => {
     mockTickets();
     render(<MyTickets requester={requester} onOpenTicket={vi.fn()} />);
 
     expect(await screen.findByText("Wi-Fi is unavailable")).toBeInTheDocument();
-    expect(api.getTickets).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 1, page: 1 }));
+    expect(api.getTickets).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }));
+    expect(api.getTickets).toHaveBeenCalledWith(expect.not.objectContaining({ requesterId: expect.anything() }));
   });
 
   it("resets to page one when a filter changes", async () => {

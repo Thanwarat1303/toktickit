@@ -6,12 +6,9 @@ import {
   type Category,
   type CreatedTicket,
   type RelatedSystem,
-  type Requester,
 } from "./api.js";
 
-interface CreateTicketFormProps {
-  requester: Requester;
-}
+interface CreateTicketFormProps { requester: { name: string }; csrfToken: string; }
 
 type LoadState = "loading" | "ready" | "error";
 type FieldName = "categoryId" | "relatedSystemId" | "summary" | "description" | "priority";
@@ -25,7 +22,7 @@ const emptyForm = {
   priority: "Medium",
 };
 
-export default function CreateTicketForm({ requester }: CreateTicketFormProps) {
+export default function CreateTicketForm({ requester, csrfToken }: CreateTicketFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -78,13 +75,12 @@ export default function CreateTicketForm({ requester }: CreateTicketFormProps) {
     setIsSubmitting(true);
     try {
       const ticket = await createTicket({
-        requesterId: requester.id,
         categoryId: Number(form.categoryId),
         relatedSystemId: Number(form.relatedSystemId),
         summary: form.summary.trim(),
         description: form.description.trim(),
         priority: form.priority as "Low" | "Medium" | "High",
-      });
+      }, csrfToken);
       setCreatedTicket(ticket);
     } catch (error) {
       setSubmitError(

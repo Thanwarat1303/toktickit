@@ -1,4 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+/** Development-only password. Every seeded account must change it after login. */
+export const initialPassword = process.env.LAB3_INITIAL_PASSWORD ?? "LAB3_INITIAL_PASSWORD_MUST_CHANGE";
+export const initialPasswordHash = bcrypt.hashSync(initialPassword, 12);
 
 export const categories = [
   { name: "Account and Access", isActive: true },
@@ -47,6 +52,35 @@ export const requesters = [
   },
 ];
 
+export const staffUsers = [
+  {
+    name: "Kanya IT Staff",
+    email: "kanya.staff@toktickit.local",
+    isActive: true,
+  },
+  {
+    name: "Narin IT Staff",
+    email: "narin.staff@toktickit.local",
+    isActive: true,
+  },
+  {
+    name: "Pimchanok IT Staff",
+    email: "pimchanok.staff@toktickit.local",
+    isActive: true,
+  },
+  {
+    name: "Inactive IT Staff",
+    email: "inactive.staff@toktickit.local",
+    isActive: false,
+  },
+];
+
+export const administrator = {
+  name: "System Administrator",
+  email: "admin@toktickit.local",
+  isActive: true,
+};
+
 export async function seedLab2Data(prisma: PrismaClient) {
   for (const category of categories) {
     await prisma.category.upsert({
@@ -73,6 +107,24 @@ export async function seedLab2Data(prisma: PrismaClient) {
   }
 
   for (const requester of requesters) {
+    const existingUser = await prisma.user.findUnique({ where: { email: requester.email }, select: { passwordHash: true, mustChangePassword: true } });
+    const user = await prisma.user.upsert({
+      where: { email: requester.email },
+      update: {
+        name: requester.name,
+        role: UserRole.REQUESTER,
+        isActive: requester.isActive,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
+        ...(existingUser?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
+      },
+      create: {
+        ...requester,
+        passwordHash: initialPasswordHash,
+        role: UserRole.REQUESTER,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
+      },
+    });
+
     await prisma.requester.upsert({
       where: {
         email: requester.email,
@@ -80,14 +132,55 @@ export async function seedLab2Data(prisma: PrismaClient) {
       update: {
         name: requester.name,
         isActive: requester.isActive,
+        userId: user.id,
       },
-      create: requester,
+      create: { ...requester, userId: user.id },
     });
   }
+
+  for (const staff of staffUsers) {
+    const existingUser = await prisma.user.findUnique({ where: { email: staff.email }, select: { passwordHash: true, mustChangePassword: true } });
+    await prisma.user.upsert({
+      where: { email: staff.email },
+      update: {
+        name: staff.name,
+        role: UserRole.IT_STAFF,
+        isActive: staff.isActive,
+        mustChangePassword: existingUser?.mustChangePassword ?? true,
+        ...(existingUser?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
+      },
+      create: {
+        ...staff,
+        passwordHash: initialPasswordHash,
+        role: UserRole.IT_STAFF,
+        mustChangePassword: true,
+      },
+    });
+  }
+
+  const existingAdministrator = await prisma.user.findUnique({ where: { email: administrator.email }, select: { passwordHash: true, mustChangePassword: true } });
+  await prisma.user.upsert({
+    where: { email: administrator.email },
+    update: {
+      name: administrator.name,
+      role: UserRole.ADMINISTRATOR,
+      isActive: administrator.isActive,
+      mustChangePassword: existingAdministrator?.mustChangePassword ?? true,
+      ...(existingAdministrator?.mustChangePassword ? { passwordHash: initialPasswordHash } : {}),
+    },
+    create: {
+      ...administrator,
+      passwordHash: initialPasswordHash,
+      role: UserRole.ADMINISTRATOR,
+      mustChangePassword: true,
+    },
+  });
 
   return {
     categoryCount: categories.length,
     relatedSystemCount: relatedSystems.length,
     requesterCount: requesters.length,
+    staffCount: staffUsers.length,
+    administratorCount: 1,
   };
 }

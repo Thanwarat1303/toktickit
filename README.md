@@ -186,3 +186,17 @@ The frontend tests cover:
 - TokTickIT heading
 - Online status and category list
 - Offline/error state when the API is unavailable
+
+## Production cookie and download contract
+
+Authentication uses an HttpOnly `SameSite=Strict` session cookie. Keep the browser
+application and API on the **same site** in production so authenticated API requests
+and attachment-download links continue to carry the session cookie. A reverse proxy is
+recommended, for example serving the API at `https://club.example.edu/api` beside the
+frontend, or using same-site HTTPS subdomains such as `app.example.edu` and
+`api.example.edu`.
+
+Do not deploy the frontend and API on unrelated sites and weaken the cookie to
+`SameSite=None` merely to make download links work. If unrelated sites are unavoidable,
+use a separately designed authenticated blob-download flow or short-lived signed download
+URLs, with their own threat-model review.
