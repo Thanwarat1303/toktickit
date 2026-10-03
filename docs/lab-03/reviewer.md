@@ -1,6 +1,20 @@
-# Lab 3 Reviewer Record
+# Lab 3 Peer Review Record
 
-Complete this record with facts after review. Do not list yourself as the independent reviewer.
+Complete this record with facts after review. Do not list yourself as the independent reviewer. Reviewer identities, PR links, quoted comments, responses, and approvals must be copied from the actual GitHub review threads.
+
+## Contract Review
+
+| PR | Reviewer | Review result | Response / resolution |
+|---|---|---|---|
+| Pending | Pending | Pending | Contract review will be recorded before implementation PRs are completed. |
+
+## Implementation Reviews
+
+| Issue / PR | Reviewer | Review result | Response / resolution |
+|---|---|---|---|
+| Pending | Pending | Pending | To be filled from GitHub review history. |
+
+## Release reviewer details
 
 | Field | Record |
 |---|---|
@@ -23,3 +37,11 @@ Complete this record with facts after review. Do not list yourself as the indepe
 ## Review findings and resolutions
 
 Record each material reviewer finding, the fixing commit/PR, and the verification result here.
+
+## Review Checklist
+
+- [ ] Reviewer identity and PR link are recorded.
+- [ ] Each change request is quoted from the real review thread.
+- [ ] The response and resulting commit are recorded.
+- [ ] Approval or merge evidence is linked.
+- [ ] Final `main` branch is checked before submission.
