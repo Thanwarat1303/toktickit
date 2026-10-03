@@ -443,3 +443,17 @@ export async function getAssignableStaffUsers(): Promise<AssignableStaffUser[]> 
 export function postInternalNote(ticketId: number, content: string, csrfToken: string) {
   return staffMutation<TicketCommunication>(`/api/tickets/${ticketId}/notes`, "POST", csrfToken, { content });
 }
+
+export interface ManagedUser extends AuthUser { createdAt: string; updatedAt: string; }
+export interface CreateManagedUserInput { name: string; email: string; role: UserRole; isActive: boolean; initialPassword: string; }
+export interface UpdateManagedUserInput { name?: string; email?: string; role?: UserRole; isActive?: boolean; }
+
+async function adminRequest<T>(path: string, method: "GET" | "POST" | "PATCH", csrfToken?: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { method, credentials: "include", headers: { "Content-Type": "application/json", ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to update users"));
+  return response.json() as Promise<T>;
+}
+export function getManagedUsers(query: { search?: string; role?: UserRole } = {}) { const p = new URLSearchParams(); if (query.search) p.set("search", query.search); if (query.role) p.set("role", query.role); return adminRequest<ManagedUser[]>(`/api/admin/users?${p}`, "GET"); }
+export function createManagedUser(input: CreateManagedUserInput, csrfToken: string) { return adminRequest<ManagedUser>("/api/admin/users", "POST", csrfToken, input); }
+export function updateManagedUser(id: number, input: UpdateManagedUserInput, csrfToken: string) { return adminRequest<ManagedUser>(`/api/admin/users/${id}`, "PATCH", csrfToken, input); }
+export function resetManagedUserPassword(id: number, initialPassword: string, csrfToken: string) { return adminRequest<ManagedUser>(`/api/admin/users/${id}/initial-password`, "POST", csrfToken, { initialPassword }); }

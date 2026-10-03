@@ -18,6 +18,7 @@ import {
   requireRole,
   requireSameOrigin,
   setSessionCookie,
+  validRole,
   type AuthenticatedRequest,
 } from "./auth.js";
 
@@ -1172,6 +1173,70 @@ app.delete("/api/attachments/:attachmentId", requireSameOrigin, requireAuth, req
   } catch {
     return res.status(500).json({ message: "Unable to remove attachment" });
   }
+});
+
+// Issue #37 — Administrator user management.  These routes intentionally use
+// the server-side session for authority and never expose hashes or sessions.
+const userFields = { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true, createdAt: true, updatedAt: true } as const;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function adminValidation(res: Response, message: string) { return authError(res, 400, "VALIDATION_ERROR", message); }
+function cleanName(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
+function cleanEmail(value: unknown) { return typeof value === "string" ? value.trim().toLowerCase() : ""; }
+function validPassword(value: unknown) { return typeof value === "string" && value.length >= 8 && value.length <= 128; }
+
+app.get("/api/admin/users", requireAuth, requireRole("ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const role = req.query.role;
+  if (role !== undefined && !validRole(role)) return adminValidation(res, "A valid role is required.");
+  try {
+    const where = { ...(role ? { role } : {}), ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { email: { contains: search, mode: "insensitive" as const } }] } : {}) };
+    return res.status(200).json(await getPrisma().user.findMany({ where, select: userFields, orderBy: [{ name: "asc" }, { id: "asc" }] }));
+  } catch { return authError(res, 500, "USER_LIST_ERROR", "Unable to load users."); }
+});
+
+app.post("/api/admin/users", requireSameOrigin, requireAuth, requireRole("ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const { role, isActive, initialPassword } = req.body ?? {}; const name = cleanName(req.body?.name); const email = cleanEmail(req.body?.email);
+  if (!name || name.length > 120 || !emailPattern.test(email) || !validRole(role) || typeof isActive !== "boolean" || !validPassword(initialPassword)) return adminValidation(res, "Name, email, one valid role, active status, and an 8–128 character initial password are required.");
+  try {
+    const passwordHash = await hashPassword(initialPassword);
+    const user = await getPrisma().$transaction(async (tx) => {
+      const created = await tx.user.create({ data: { name, email, role, isActive, passwordHash, mustChangePassword: true }, select: userFields });
+      if (role === "REQUESTER") await tx.requester.create({ data: { userId: created.id, name, email, isActive } });
+      return created;
+    });
+    return res.status(201).json(user);
+  } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return authError(res, 409, "EMAIL_CONFLICT", "That email address is already in use."); return authError(res, 500, "USER_CREATE_ERROR", "Unable to create user."); }
+});
+
+app.patch("/api/admin/users/:userId", requireSameOrigin, requireAuth, requireRole("ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = Number(req.params.userId); const body = req.body ?? {};
+  if (!positiveInteger(userId) || !["name", "email", "role", "isActive"].some((key) => Object.prototype.hasOwnProperty.call(body, key))) return adminValidation(res, "Provide a valid user and at least one editable field.");
+  const data: { name?: string; email?: string; role?: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR"; isActive?: boolean } = {};
+  if ("name" in body) { const name = cleanName(body.name); if (!name || name.length > 120) return adminValidation(res, "Name must be 1 to 120 characters."); data.name = name; }
+  if ("email" in body) { const email = cleanEmail(body.email); if (!emailPattern.test(email)) return adminValidation(res, "A valid email is required."); data.email = email; }
+  if ("role" in body) { if (!validRole(body.role)) return adminValidation(res, "A valid role is required."); data.role = body.role; }
+  if ("isActive" in body) { if (typeof body.isActive !== "boolean") return adminValidation(res, "Active status must be true or false."); data.isActive = body.isActive; }
+  if (data.isActive === false && userId === req.auth!.user.id) return authError(res, 409, "SELF_DEACTIVATION", "You cannot deactivate your own account.");
+  try {
+    const prisma = getPrisma(); const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) return authError(res, 404, "USER_NOT_FOUND", "User was not found.");
+    const removesLastAdmin = target.role === "ADMINISTRATOR" && target.isActive && (data.isActive === false || (data.role !== undefined && data.role !== "ADMINISTRATOR"));
+    if (removesLastAdmin && await prisma.user.count({ where: { role: "ADMINISTRATOR", isActive: true } }) <= 1) return authError(res, 409, "LAST_ADMINISTRATOR", "At least one active Administrator is required.");
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id: userId }, data, select: userFields });
+      // Keep a Requester profile aligned whenever the account remains a Requester.
+      if (updated.role === "REQUESTER") await tx.requester.upsert({ where: { userId }, update: { name: updated.name, email: updated.email, isActive: updated.isActive }, create: { userId, name: updated.name, email: updated.email, isActive: updated.isActive } });
+      return updated;
+    });
+    return res.status(200).json(user);
+  } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return authError(res, 409, "EMAIL_CONFLICT", "That email address is already in use."); return authError(res, 500, "USER_UPDATE_ERROR", "Unable to update user."); }
+});
+
+app.post("/api/admin/users/:userId/initial-password", requireSameOrigin, requireAuth, requireRole("ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = Number(req.params.userId); const initialPassword = req.body?.initialPassword;
+  if (!positiveInteger(userId) || !validPassword(initialPassword)) return adminValidation(res, "A valid user and an 8–128 character initial password are required.");
+  try { const user = await getPrisma().user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(initialPassword), mustChangePassword: true }, select: userFields }); return res.status(200).json(user); }
+  catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return authError(res, 404, "USER_NOT_FOUND", "User was not found."); return authError(res, 500, "PASSWORD_RESET_ERROR", "Unable to reset password."); }
 });
 
 export default app;

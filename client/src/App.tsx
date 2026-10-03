@@ -7,6 +7,7 @@ import MyTickets from "./MyTickets.js";
 import TicketDetail from "./TicketDetail.js";
 import StaffTicketQueue from "./StaffTicketQueue.js";
 import StaffTicketDetail from "./StaffTicketDetail.js";
+import UserManagement from "./UserManagement.js";
 
 type Screen = "loading" | "login" | "change-password" | "home";
 
@@ -25,7 +26,7 @@ export default function App() {
       {screen === "loading" && <p className="text-center text-secondary">Restoring your session…</p>}
       {screen === "login" && <Login onSuccess={openSession} />}
       {screen === "change-password" && session && <ChangePassword session={session} onSuccess={openSession} />}
-      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} csrfToken={session.csrfToken} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : session.user.role === "IT_STAFF" ? (staffTicketId ? <StaffTicketDetail ticketId={staffTicketId} csrfToken={session.csrfToken} onBack={() => setStaffTicketId(null)} /> : <StaffTicketQueue onOpenTicket={setStaffTicketId} />) : <section className="selected-card" aria-labelledby="welcome-heading"><div><p className="eyebrow mb-2">Authenticated</p><h1 id="welcome-heading" className="h2">Welcome, {session.user.name}</h1><p className="text-secondary mb-2">{session.user.email} · Administrator</p><p className="mb-0">User management will be available in a later feature.</p></div></section>)}
+      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} csrfToken={session.csrfToken} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : session.user.role === "IT_STAFF" ? (staffTicketId ? <StaffTicketDetail ticketId={staffTicketId} csrfToken={session.csrfToken} onBack={() => setStaffTicketId(null)} /> : <StaffTicketQueue onOpenTicket={setStaffTicketId} />) : <UserManagement csrfToken={session.csrfToken} />)}
     </main>
   </div>;
 }

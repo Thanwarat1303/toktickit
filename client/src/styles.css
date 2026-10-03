@@ -323,6 +323,12 @@ body {
 .staff-detail__confirm { border: 1px solid var(--zen-border); border-left: 4px solid var(--zen-green); border-radius: 0.8rem; padding: 1rem; }
 .staff-detail__confirm h2 { font-size: 1.05rem; }
 .staff-detail__confirm button + button { margin-left: 0.6rem; }
+.user-management { display: grid; gap: 1.2rem; }
+.user-management__filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, .45fr) auto; gap: .75rem; align-items: end; }
+.user-management__filters label, .user-management__forms label { display: grid; gap: .35rem; font-weight: 700; }
+.user-management__table-wrap { overflow-x: auto; }
+.user-management__forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.user-management__inactive { color: #6b4b12; background: #fff2c6; }
 .staff-detail__attachments, .staff-detail__messages { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
 .staff-detail__attachments li, .staff-detail__messages li { border: 1px solid var(--zen-border); border-radius: 0.6rem; padding: 0.7rem; display: flex; justify-content: space-between; gap: 0.75rem; }
 .staff-detail__messages li { display: grid; }
@@ -497,6 +503,7 @@ body {
   .attachment-actions { width: 100%; justify-content: stretch; }
   .attachment-actions .btn { flex: 1; }
   .staff-detail__grid, .staff-detail__communications { grid-template-columns: 1fr; }
+  .user-management__filters, .user-management__forms { grid-template-columns: 1fr; }
   .staff-detail__panel dl { grid-template-columns: 1fr; gap: 0.2rem; }
 }
 
