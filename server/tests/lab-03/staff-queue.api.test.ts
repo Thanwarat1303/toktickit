@@ -63,3 +63,12 @@ describe("GET /api/staff/tickets", () => {
     expect((await staffAgent.get("/api/staff/tickets").query({ pageSize: 51 })).status).toBe(400);
   });
 });
+
+describe("GET /api/staff/assignable-users", () => {
+  it("returns active IT Staff only and rejects a Requester", async () => {
+    expect((await requesterAgent.get("/api/staff/assignable-users")).status).toBe(403);
+    const response = await staffAgent.get("/api/staff/assignable-users").expect(200);
+    expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: staffId, name: "Queue Staff" })]));
+    expect(response.body.every((user: { passwordHash?: unknown; role?: string }) => user.passwordHash === undefined && user.role === undefined)).toBe(true);
+  });
+});
