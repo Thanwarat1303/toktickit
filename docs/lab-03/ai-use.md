@@ -14,6 +14,17 @@
 5. Build a planned-test table and AC-to-test traceability matrix covering API, UI, authorization, migration, responsive, and E2E tests.
 6. Review implementation changes against the approved contract and identify missing evidence before merge.
 
-## My Reflection
+AI assistance was used to help draft implementation plans, explain Git and testing workflows,
+review code for likely security/regression risks, and propose test cases and documentation.
 
-I used specification mode to turn the handout into explicit decisions before implementation. Separating role permissions and ownership rules from UI visibility was especially useful because hiding a button is not backend authorization. I used coding assistance for implementation guidance and test design, then checked the generated work against the repository, test output, and peer review rather than treating an agent response as evidence by itself. I kept session expiry, login-attempt protection, and CSRF behavior visible in the contract so the reviewer can approve or request changes before coding.
+The project owner remained responsible for choosing scope, inspecting changes, running commands,
+testing the application, committing code, opening pull requests, and accepting or rejecting
+review feedback. No generated claim of passing tests, reviewer approval, or submission evidence
+is valid without the corresponding real command output or GitHub review record.
+
+Before submission, update this reflection with any course-required wording and verify it matches
+the actual use of AI during the project.
+
+## Final verification note
+
+Generated text, suggested tests, or review advice are not evidence by themselves; the owner must retain the real command output, screenshots, and independent GitHub review record.
