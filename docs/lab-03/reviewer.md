@@ -27,12 +27,18 @@ Complete this record with facts after review. Do not list yourself as the indepe
 
 | Feature | PR link | Reviewer decision |
 |---|---|---|
-| Authentication and session | _Add actual link_ | _Pending_ |
-| Authorization and requester regression | _Add actual link_ | _Pending_ |
-| IT Staff queue/detail/workflow | _Add actual link_ | _Pending_ |
-| Public comments and internal notes | _Add actual link_ | _Pending_ |
-| Administrator user management | _Add actual link_ | _Pending_ |
-| Test/E2E and release integration | _Add actual link_ | _Pending_ |
+| Engineering contract | [PR #40](https://github.com/Thanwarat1303/toktickit/pull/40) | Changes requested → merged |
+| Lab 3 data model and seed | [PR #41](https://github.com/Thanwarat1303/toktickit/pull/41) | Changes requested → merged |
+| Authentication API and session | [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) | Changes requested → merged |
+| Login and first-password-change UI | [PR #43](https://github.com/Thanwarat1303/toktickit/pull/43) | Changes requested → merged |
+| Authorization and requester regression | [PR #44](https://github.com/Thanwarat1303/toktickit/pull/44) | Approved → merged |
+| IT Staff queue | [PR #45](https://github.com/Thanwarat1303/toktickit/pull/45) | Changes requested → merged |
+| IT Staff ticket operations | [PR #47](https://github.com/Thanwarat1303/toktickit/pull/47) | Approved → merged |
+| Public comments and internal notes | [PR #48](https://github.com/Thanwarat1303/toktickit/pull/48) | Changes requested → merged |
+| IT Staff Ticket Detail UI | [PR #49](https://github.com/Thanwarat1303/toktickit/pull/49) | Changes requested → merged |
+| Administrator user management | [PR #50](https://github.com/Thanwarat1303/toktickit/pull/50) | Changes requested → merged |
+| Lab 3 Test/E2E coverage | [PR #52](https://github.com/Thanwarat1303/toktickit/pull/52) | Approved → merged |
+| Final evidence and release integration | _Add this PR after it is opened_ | _Pending independent review_ |
 
 ## Review findings and resolutions
 
@@ -46,14 +52,14 @@ and reviewer identity from those threads.
 
 | Area | Reviewer finding | Resolution / evidence | PR link |
 |---|---|---|---|
-| Engineering contract | The confirmation-required dimension was missing from the ticket status transition contract. | Added the target-status confirmation matrix, BR-42, AC-31, API/UI contract details, and planned tests. | _Verify contract PR_ |
-| Authentication migration | The authentication migration could duplicate schema objects when replayed from a fresh database. | Migration base and replay behavior were checked; auth migration was kept limited to its real schema diff. | _Verify authentication PR_ |
+| Engineering contract | The confirmation-required dimension was missing from the ticket status transition contract. | Added the target-status confirmation matrix, BR-42, AC-31, API/UI contract details, and planned tests. | [PR #40](https://github.com/Thanwarat1303/toktickit/pull/40) |
+| Authentication migration | The authentication migration could duplicate schema objects when replayed from a fresh database. | Migration base and replay behavior were checked; auth migration was kept limited to its real schema diff. | [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) |
 | Authentication security | Login timing differed for unknown/inactive emails because bcrypt comparison could be skipped. | Added a fixed dummy bcrypt hash so every login attempt performs one comparison. | Commit `862cf1f` |
-| Authentication test isolation | Parallel test files leaked temporary user fixtures into seed-count assertions. | Server test files were configured to run serially while request-level race tests remain concurrent. | _Verify authentication PR_ |
-| Requester regression | The App shell left Create Ticket, My Tickets, and Ticket Detail unreachable after login. | Requester workspace routes/components were wired back into `App.tsx`. | _Verify authorization PR_ |
-| IT Staff queue | Unknown category/related-system filters were accepted, and mobile hid search with the collapsed filters. | Added reference validation and kept search visible above mobile secondary filters. | _Verify staff queue PR_ |
+| Authentication test isolation | Parallel test files leaked temporary user fixtures into seed-count assertions. | Server test files were configured to run serially while request-level race tests remain concurrent. | [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) |
+| Requester regression | The App shell left Create Ticket, My Tickets, and Ticket Detail unreachable after login. | Requester workspace routes/components were wired back into `App.tsx`. | [PR #44](https://github.com/Thanwarat1303/toktickit/pull/44) |
+| IT Staff queue | Unknown category/related-system filters were accepted, and mobile hid search with the collapsed filters. | Added reference validation and kept search visible above mobile secondary filters. | [PR #45](https://github.com/Thanwarat1303/toktickit/pull/45) |
 | IT Staff workflow | Claim used a read-then-write flow and could allow simultaneous conflicting claims. | Replaced it with atomic `updateMany` ownership claim and added concurrent-claim regression coverage. | Commit `e754e01` |
-| Comments and notes | Posting a staff/Admin public comment to a missing ticket could cause an unhandled foreign-key failure. | Added an existence check and safe `404`; added comments/notes behavior and validation coverage. | _Verify comments/notes PR_ |
+| Comments and notes | Posting a staff/Admin public comment to a missing ticket could cause an unhandled foreign-key failure. | Added an existence check and safe `404`; added comments/notes behavior and validation coverage. | [PR #48](https://github.com/Thanwarat1303/toktickit/pull/48) |
 | Attachments | IT Staff could not download queue attachments because the route assumed every caller had a Requester profile. | Allowed IT Staff and retained Requester-only ownership checks; regression test added. | Commit `dcef836` |
 | Administrator management | User-management endpoints initially lacked API regression coverage. | Added `users-admin.api.test.ts` for authorization, CRUD/reset, validation, duplicate email, and safety rules. | Commit `f5f8bf3` |
 | Administrator safety test | Seed Administrators meant the “last active Administrator” test did not establish its required fixture state. | The test temporarily suspends non-fixture Administrators and restores exact prior states in `finally`. | Commit `ee30b0a` |
