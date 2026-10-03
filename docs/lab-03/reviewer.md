@@ -40,6 +40,24 @@ Complete this record with facts after review. Do not list yourself as the indepe
 | Lab 3 Test/E2E coverage | [PR #52](https://github.com/Thanwarat1303/toktickit/pull/52) | Approved → merged |
 | Final evidence and release integration | _Add this PR after it is opened_ | _Pending independent review_ |
 
+## Collaborator implementation PRs
+
+The following implementation PRs were merged in the collaborator repository and are part of
+the peer-review trail. Their status below is transcribed from the GitHub history shown during
+release integration; use the linked thread for the full review conversation.
+
+| Feature | PR link | Status shown in GitHub |
+|---|---|---|
+| Engineering contract | [mxckiexz PR #43](https://github.com/mxckiexz/TocTickIT/pull/43) | Approved → merged |
+| Authentication foundation | [mxckiexz PR #44](https://github.com/mxckiexz/TocTickIT/pull/44) | Approved → merged |
+| Authorization and requester regression | [mxckiexz PR #45](https://github.com/mxckiexz/TocTickIT/pull/45) | Changes requested; later restored by PR #48 |
+| Revert of premature Feature 3 merge | [mxckiexz PR #46](https://github.com/mxckiexz/TocTickIT/pull/46) | Approved → merged |
+| IT Staff Ticket Queue | [mxckiexz PR #47](https://github.com/mxckiexz/TocTickIT/pull/47) | Approved → merged |
+| Restored Feature 3 | [mxckiexz PR #48](https://github.com/mxckiexz/TocTickIT/pull/48) | Approved → merged |
+| IT Staff Ticket Detail & Workflow | [mxckiexz PR #49](https://github.com/mxckiexz/TocTickIT/pull/49) | Approved → merged |
+| Administrator User Management | [mxckiexz PR #50](https://github.com/mxckiexz/TocTickIT/pull/50) | Approved → merged |
+| E2E, visual, and responsive evidence | [mxckiexz PR #51](https://github.com/mxckiexz/TocTickIT/pull/51) | Approved → merged |
+
 ## Review findings and resolutions
 
 Record each material reviewer finding, the fixing commit/PR, and the verification result here.
