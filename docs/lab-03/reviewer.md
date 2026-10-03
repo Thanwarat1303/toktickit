@@ -1,23 +1,25 @@
-# Lab 3 Peer Review Record
+# Lab 3 Reviewer Record
 
-This file records the Lab 3 engineering-contract and implementation reviews. Reviewer identities, PR links, quoted comments, responses, and approvals must be copied from the actual GitHub review threads.
+Complete this record with facts after review. Do not list yourself as the independent reviewer.
 
-## Contract Review
+| Field | Record |
+|---|---|
+| Reviewer name / GitHub account | _Pending independent review_ |
+| Review date | _Pending_ |
+| Review scope | Security, migrations, API behavior, UI, tests, and E2E evidence |
+| Final review decision | _Pending_ |
 
-| PR | Reviewer | Review result | Response / resolution |
-|---|---|---|---|
-| Pending | Pending | Pending | Contract review will be recorded before implementation PRs are completed. |
+## Approved pull requests
 
-## Implementation Reviews
+| Feature | PR link | Reviewer decision |
+|---|---|---|
+| Authentication and session | _Add actual link_ | _Pending_ |
+| Authorization and requester regression | _Add actual link_ | _Pending_ |
+| IT Staff queue/detail/workflow | _Add actual link_ | _Pending_ |
+| Public comments and internal notes | _Add actual link_ | _Pending_ |
+| Administrator user management | _Add actual link_ | _Pending_ |
+| Test/E2E and release integration | _Add actual link_ | _Pending_ |
 
-| Issue / PR | Reviewer | Review result | Response / resolution |
-|---|---|---|---|
-| Pending | Pending | Pending | To be filled from GitHub review history. |
+## Review findings and resolutions
 
-## Review Checklist
-
-- [ ] Reviewer identity and PR link are recorded.
-- [ ] Each change request is quoted from the real review thread.
-- [ ] The response and resulting commit are recorded.
-- [ ] Approval or merge evidence is linked.
-- [ ] Final `main` branch is checked before submission.
+Record each material reviewer finding, the fixing commit/PR, and the verification result here.
