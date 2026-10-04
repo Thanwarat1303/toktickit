@@ -11,6 +11,45 @@ enum Priority {
   LOW
   MEDIUM
   HIGH
+  URGENT
+}
+
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  isActive          Boolean   @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  requesterProfile Requester?      @relation("RequesterUser")
+  assignedTickets  Ticket[]        @relation("AssignedStaff")
+  comments         TicketComment[]
+  internalNotes    InternalNote[]
+  sessions         Session[]
+
+  @@index([role, isActive])
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  tokenHash  String   @unique
+  csrfToken  String
+  userId     Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Category {
@@ -33,12 +72,14 @@ model RelatedSystem {
 
 model Requester {
   id        Int      @id @default(autoincrement())
+  userId    Int?     @unique
   name      String
   email     String   @unique
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   tickets Ticket[]
+  user    User?    @relation("RequesterUser", fields: [userId], references: [id])
 }
 
 model Ticket {
@@ -51,18 +92,50 @@ model Ticket {
   description     String
   priority        Priority
   currentStatus   String   @default("New")
+  assignedStaffId Int?
+  itPriority      Priority @default(LOW)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  requester     Requester     @relation(fields: [requesterId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  requester     Requester       @relation(fields: [requesterId], references: [id])
+  assignedStaff User?           @relation("AssignedStaff", fields: [assignedStaffId], references: [id])
+  category      Category        @relation(fields: [categoryId], references: [id])
+  relatedSystem RelatedSystem   @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]
+  comments      TicketComment[]
+  internalNotes InternalNote[]
 
   @@index([requesterId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([createdAt])
+  @@index([assignedStaffId, currentStatus])
+}
+
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+}
+
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
 }
 
 model Attachment {

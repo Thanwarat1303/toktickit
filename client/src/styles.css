@@ -80,11 +80,14 @@ body {
 }
 
 .requester-card,
+.auth-card,
 .selected-card,
 .system-card,
 .ticket-form-card,
 .ticket-success-card,
 .ticket-detail-card {
+  /* Keep the Back action and header aligned with the inner detail panels. */
+  padding: clamp(1rem, 3vw, 1.5rem);
   border: 1px solid var(--zen-border);
   border-radius: 1.35rem;
   background: rgba(255, 255, 255, 0.94);
@@ -96,6 +99,12 @@ body {
   margin: 0 auto;
   padding: clamp(1.5rem, 5vw, 2.6rem);
   text-align: center;
+}
+
+.auth-card {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: clamp(1.5rem, 5vw, 2.6rem);
 }
 
 .requester-card__icon {
@@ -283,6 +292,51 @@ body {
 .ticket-pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .empty-state { padding: 2.2rem 1rem; border: 1px dashed var(--zen-border); border-radius: 1rem; color: var(--zen-muted); text-align: center; }
 
+.staff-queue__heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.staff-queue__search { display: grid; gap: 0.35rem; font-weight: 700; margin: 1rem 0; }
+.staff-queue__search input, .staff-queue__filters select { width: 100%; border: 1px solid var(--zen-border); border-radius: 0.55rem; padding: 0.6rem 0.7rem; background: #fff; }
+.staff-queue__filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+.staff-queue__filters label { display: grid; gap: 0.35rem; font-size: 0.83rem; font-weight: 700; }
+.staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: none; }
+.staff-queue__table-wrap { overflow-x: auto; }
+.staff-queue .ticket-table { width: 100%; min-width: 820px; }
+.staff-queue .ticket-table th button { border: 0; background: transparent; font: inherit; font-weight: 800; color: inherit; cursor: pointer; padding: 0; }
+.staff-queue__card { border: 1px solid var(--zen-border); border-radius: 0.7rem; padding: 0.85rem; display: grid; gap: 0.55rem; }
+.staff-queue__card > div { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
+.staff-queue__card p { color: var(--zen-muted); font-size: 0.85rem; margin: 0; }
+
+.staff-detail { display: grid; gap: 1.2rem; }
+.staff-detail__heading, .staff-detail__communications { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.staff-detail__heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.staff-detail__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.staff-detail__panel { border: 1px solid var(--zen-border); border-radius: 0.8rem; padding: 1rem; display: grid; gap: 0.75rem; }
+.staff-detail__panel h2 { font-size: 1.1rem; margin: 0; }
+.staff-detail__panel label { display: grid; gap: 0.35rem; font-weight: 700; }
+.staff-detail__panel select, .staff-detail__panel textarea { width: 100%; border: 1px solid var(--zen-border); border-radius: 0.55rem; padding: 0.6rem 0.7rem; background: #fff; }
+.staff-detail__panel textarea { min-height: 5.5rem; resize: vertical; }
+.staff-detail__panel dl { display: grid; grid-template-columns: 9rem 1fr; gap: 0.55rem 1rem; margin: 0; }
+.staff-detail__panel dt { color: var(--zen-muted); font-weight: 700; }
+.staff-detail__panel dd { margin: 0; overflow-wrap: anywhere; }
+.staff-detail__panel dd small { display: block; color: var(--zen-muted); }
+.staff-detail__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.staff-detail__message { margin: 0; border-radius: 0.65rem; padding: 0.75rem; background: var(--zen-mint); color: var(--zen-ink); }
+.staff-detail__confirm { border: 1px solid var(--zen-border); border-left: 4px solid var(--zen-green); border-radius: 0.8rem; padding: 1rem; }
+.staff-detail__confirm h2 { font-size: 1.05rem; }
+.staff-detail__confirm button + button { margin-left: 0.6rem; }
+.user-management { display: grid; gap: 1.2rem; }
+.user-management__filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, .45fr) auto; gap: .75rem; align-items: end; }
+.user-management__filters label, .user-management__forms label { display: grid; gap: .35rem; font-weight: 700; }
+.user-management__table-wrap { overflow-x: auto; }
+.user-management__forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.user-management__inactive { color: #6b4b12; background: #fff2c6; }
+.staff-detail__attachments, .staff-detail__messages { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
+.staff-detail__attachments li, .staff-detail__messages li { border: 1px solid var(--zen-border); border-radius: 0.6rem; padding: 0.7rem; display: flex; justify-content: space-between; gap: 0.75rem; }
+.staff-detail__messages li { display: grid; }
+.staff-detail__messages p { margin: 0; white-space: pre-wrap; }
+.staff-detail__messages time { color: var(--zen-muted); font-size: 0.8rem; }
+.internal-notes { background: #f4f8f5; border-color: #a8c7b0; }
+.internal-notes h2 span { font-size: 0.75rem; color: var(--zen-muted); font-weight: 600; }
+
 .ticket-detail-card__header {
   display: flex;
   align-items: flex-start;
@@ -442,7 +496,18 @@ body {
   .ticket-filters { grid-template-columns: 1fr; }
   .ticket-detail-grid { grid-template-columns: 1fr; }
   .ticket-pagination { align-items: stretch; flex-direction: column; }
+  .staff-queue__filters-wrap, .staff-queue__table-wrap { display: none; }
+  .staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: block; }
+  .staff-queue__filters-mobile .staff-queue__filters { display: grid; grid-template-columns: 1fr; margin-top: 0.75rem; }
   .attachment-upload-form { grid-template-columns: 1fr; }
   .attachment-actions { width: 100%; justify-content: stretch; }
   .attachment-actions .btn { flex: 1; }
+  .staff-detail__grid, .staff-detail__communications { grid-template-columns: 1fr; }
+  .user-management__filters, .user-management__forms { grid-template-columns: 1fr; }
+  .staff-detail__panel dl { grid-template-columns: 1fr; gap: 0.2rem; }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .staff-queue__filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .staff-queue__wide { display: none; }
 }

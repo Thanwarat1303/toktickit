@@ -3,16 +3,19 @@ import {
   ApiRequestError,
   attachmentDownloadUrl,
   getTicketAttachments,
+  getTicketComments,
   getTicketDetail,
+  postTicketComment,
   removeAttachment,
+  type TicketCommunication,
   uploadTicketAttachment,
   type AttachmentSummary,
-  type Requester,
   type TicketDetail as TicketDetailData,
 } from "./api.js";
 
 interface TicketDetailProps {
-  requester: Requester;
+  requester: { name: string };
+  csrfToken: string;
   ticketId: number;
   onBack: () => void;
 }
@@ -32,7 +35,7 @@ const allowedAttachmentTypes = new Set([
 const maxAttachmentBytes = 5 * 1024 * 1024;
 const maxActiveAttachments = 5;
 
-export default function TicketDetail({ requester, ticketId, onBack }: TicketDetailProps) {
+export default function TicketDetail({ requester, csrfToken, ticketId, onBack }: TicketDetailProps) {
   const [ticket, setTicket] = useState<TicketDetailData | null>(null);
   const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
   const [loadingTicket, setLoadingTicket] = useState(true);
@@ -45,6 +48,10 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [comments, setComments] = useState<TicketCommunication[]>([]);
+  const [commentContent, setCommentContent] = useState("");
+  const [commentError, setCommentError] = useState("");
+  const [commentSending, setCommentSending] = useState(false);
 
   const activeAttachmentCount = attachments.filter((attachment) => !attachment.removedAt).length;
   const attachmentLimitReached = activeAttachmentCount >= maxActiveAttachments;
@@ -54,7 +61,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setAttachmentError("");
 
     try {
-      const loadedAttachments = await getTicketAttachments(ticketId, requester.id);
+      const loadedAttachments = await getTicketAttachments(ticketId);
       setAttachments(loadedAttachments);
     } catch (caught) {
       setAttachmentError(
@@ -73,7 +80,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setLoadingTicket(true);
     setTicketError("");
 
-    getTicketDetail(ticketId, requester.id)
+    getTicketDetail(ticketId)
       .then((loadedTicket) => {
         if (!cancelled) setTicket(loadedTicket);
       })
@@ -94,11 +101,25 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     return () => {
       cancelled = true;
     };
-  }, [ticketId, requester.id]);
+  }, [ticketId]);
+
+  useEffect(() => {
+    getTicketComments(ticketId).then(setComments).catch(() => setCommentError("Unable to load comments."));
+  }, [ticketId]);
+
+  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = commentContent.trim();
+    if (!content || content.length > 2000) { setCommentError("Comment must be between 1 and 2000 characters."); return; }
+    setCommentSending(true); setCommentError("");
+    try { const comment = await postTicketComment(ticketId, content, csrfToken); setComments((items) => [...items, comment]); setCommentContent(""); }
+    catch (caught) { setCommentError(caught instanceof ApiRequestError ? caught.message : "Unable to post comment."); }
+    finally { setCommentSending(false); }
+  }
 
   useEffect(() => {
     void loadAttachments();
-  }, [ticketId, requester.id]);
+  }, [ticketId]);
 
   async function handleRemoveAttachment(attachment: AttachmentSummary) {
     const reason = window.prompt(
@@ -113,8 +134,8 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     try {
       const removedAttachment = await removeAttachment(
         attachment.id,
-        requester.id,
-        reason
+        reason,
+        csrfToken,
       );
 
       setAttachments((currentAttachments) =>
@@ -161,7 +182,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
     setUploading(true);
 
     try {
-      await uploadTicketAttachment(ticketId, requester.id, selectedFile);
+      await uploadTicketAttachment(ticketId, selectedFile, csrfToken);
       setSelectedFile(null);
       setFileInputKey((currentKey) => currentKey + 1);
       setUploadSuccess("Attachment uploaded successfully.");
@@ -217,6 +238,12 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
             <h3 className="h5">Description</h3>
             <p className="mb-0">{ticket.description}</p>
           </div>
+          <section className="attachments-panel mt-4" aria-labelledby="comments-heading">
+            <p className="eyebrow mb-1">Conversation</p><h3 id="comments-heading" className="h5">Public Comments</h3>
+            {commentError && <div role="alert" className="state-panel state-panel--error">{commentError}</div>}
+            {comments.length === 0 ? <p className="text-secondary">No comments yet.</p> : <ul className="list-unstyled">{comments.map((comment) => <li key={comment.id} className="border-bottom py-2"><strong>{comment.author.name}</strong><span className="text-secondary small"> · {new Date(comment.createdAt).toLocaleString()}</span><p className="mb-0">{comment.content}</p></li>)}</ul>}
+            <form onSubmit={(event) => void handleCommentSubmit(event)}><label htmlFor="ticket-comment" className="form-label">Add a public comment</label><textarea id="ticket-comment" className="form-control" rows={3} maxLength={2000} value={commentContent} disabled={commentSending} onChange={(event) => setCommentContent(event.target.value)} /><button className="btn btn-primary mt-2" disabled={commentSending}>{commentSending ? "Posting…" : "Post comment"}</button></form>
+          </section>
         </>
       )}
 
@@ -328,7 +355,7 @@ export default function TicketDetail({ requester, ticketId, onBack }: TicketDeta
                     <div className="attachment-actions">
                       <a
                         className="btn btn-outline-zen"
-                        href={attachmentDownloadUrl(attachment.id, requester.id)}
+                        href={attachmentDownloadUrl(attachment.id)}
                         target="_blank"
                         rel="noreferrer"
                       >

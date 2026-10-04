@@ -6,14 +6,13 @@ import {
   getTickets,
   type Category,
   type RelatedSystem,
-  type Requester,
   type TicketListResponse,
 } from "./api.js";
 
 type SortValue = "createdAt-desc" | "createdAt-asc" | "summary-asc" | "summary-desc" | "priority-asc" | "priority-desc";
 
 interface MyTicketsProps {
-  requester: Requester;
+  requester: { name: string };
   onOpenTicket: (ticketId: number) => void;
 }
 
@@ -48,7 +47,6 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
     setError("");
 
     getTickets({
-      requesterId: requester.id,
       search: search.trim() || undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
       relatedSystemId: relatedSystemId ? Number(relatedSystemId) : undefined,
@@ -75,7 +73,7 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
     return () => {
       cancelled = true;
     };
-  }, [requester.id, search, categoryId, relatedSystemId, priority, status, sort, page]);
+  }, [search, categoryId, relatedSystemId, priority, status, sort, page]);
 
   function resetPage(action: () => void) {
     action();
