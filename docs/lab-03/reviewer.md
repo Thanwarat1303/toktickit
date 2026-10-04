@@ -65,18 +65,19 @@ Record each material reviewer finding, the fixing commit/PR, and the verificatio
 ### Material Lab 3 review history
 
 The following is a concise record of the material findings discussed during implementation.
-Before submission, replace the PR placeholders with the real GitHub links and confirm dates
-and reviewer identity from those threads.
+Each row names the repository-specific PR that actually contained the reviewed change; similarly
+numbered PRs in the two repositories must not be treated as interchangeable.
 
 | Area | Reviewer finding | Resolution / evidence | PR link |
 |---|---|---|---|
-| Engineering contract | The confirmation-required dimension was missing from the ticket status transition contract. | Added the target-status confirmation matrix, BR-42, AC-31, API/UI contract details, and planned tests. | [PR #40](https://github.com/Thanwarat1303/toktickit/pull/40) |
+| Collaborator engineering contract | The confirmation-required dimension was missing from the ticket status transition contract. | Added the target-status confirmation matrix, BR-42, AC-31, API/UI contract details, and planned tests (`a40763c`). | [mxckiexz PR #43](https://github.com/mxckiexz/TocTickIT/pull/43) |
 | Authentication migration | The authentication migration could duplicate schema objects when replayed from a fresh database. | Migration base and replay behavior were checked; auth migration was kept limited to its real schema diff. | [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) |
-| Authentication security | Login timing differed for unknown/inactive emails because bcrypt comparison could be skipped. | Added a fixed dummy bcrypt hash so every login attempt performs one comparison. | Commit `862cf1f` |
+| Collaborator authentication security | Login timing differed for unknown/inactive emails because bcrypt comparison could be skipped. | Added a fixed dummy bcrypt hash so every login attempt performs one comparison (`862cf1f`). | [mxckiexz PR #44](https://github.com/mxckiexz/TocTickIT/pull/44) |
 | Authentication test isolation | Parallel test files leaked temporary user fixtures into seed-count assertions. | Server test files were configured to run serially while request-level race tests remain concurrent. | [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) |
-| Requester regression | The App shell left Create Ticket, My Tickets, and Ticket Detail unreachable after login. | Requester workspace routes/components were wired back into `App.tsx`. | [PR #44](https://github.com/Thanwarat1303/toktickit/pull/44) |
-| IT Staff queue | Unknown category/related-system filters were accepted, and mobile hid search with the collapsed filters. | Added reference validation and kept search visible above mobile secondary filters. | [PR #45](https://github.com/Thanwarat1303/toktickit/pull/45) |
-| IT Staff workflow | Claim used a read-then-write flow and could allow simultaneous conflicting claims. | Replaced it with atomic `updateMany` ownership claim and added concurrent-claim regression coverage. | Commit `e754e01` |
+| Login UI / Requester workspace | The App shell left Create Ticket, My Tickets, and Ticket Detail unreachable after login. | Requester workspace routes/components were restored in `App.tsx` by `9b36746`; that commit is the second parent of merge commit `846b53a`. | [PR #43](https://github.com/Thanwarat1303/toktickit/pull/43) |
+| IT Staff queue | CSRF-token handling was inconsistent and the strict-cookie/cross-origin download deployment assumption needed to be explicit; queue authorization and component regression coverage were also requested. | Passed CSRF tokens explicitly and documented the same-site deployment contract (`acd45f1`); added queue authorization/component coverage (`7650b03`). | [PR #45](https://github.com/Thanwarat1303/toktickit/pull/45) |
+| Collaborator IT Staff queue | Unknown category/related-system references required explicit validation, and mobile search needed to remain visible outside collapsed secondary filters. | Added reference existence validation and preserved the always-visible mobile search control. | [mxckiexz PR #47](https://github.com/mxckiexz/TocTickIT/pull/47) |
+| Collaborator IT Staff workflow | Claim used a read-then-write flow and could allow simultaneous conflicting claims. | Replaced it with atomic `updateMany` ownership claim and added concurrent-claim regression coverage (`e754e01`). | [mxckiexz PR #49](https://github.com/mxckiexz/TocTickIT/pull/49) |
 | Comments and notes | Posting a staff/Admin public comment to a missing ticket could cause an unhandled foreign-key failure. | Added an existence check and safe `404`; added comments/notes behavior and validation coverage. | [PR #48](https://github.com/Thanwarat1303/toktickit/pull/48) |
 | Attachments | IT Staff could not download queue attachments because the route assumed every caller had a Requester profile. | Allowed IT Staff and retained Requester-only ownership checks; regression test added. | Commit `dcef836` |
 | Administrator management | User-management endpoints initially lacked API regression coverage. | Added `users-admin.api.test.ts` for authorization, CRUD/reset, validation, duplicate email, and safety rules. | Commit `f5f8bf3` |
