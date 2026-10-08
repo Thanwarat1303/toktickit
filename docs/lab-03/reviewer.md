@@ -6,22 +6,33 @@ Complete this record with facts after review. Do not list yourself as the indepe
 
 | PR | Reviewer | Review result | Response / resolution |
 |---|---|---|---|
-| Pending | Pending | Pending | Contract review will be recorded before implementation PRs are completed. |
+| [PR #40](https://github.com/Thanwarat1303/toktickit/pull/40) | [mxckiexz](https://github.com/mxckiexz) | Changes requested; merged | The GitHub review records a changes-requested review. The contract was revised on the branch and the PR was merged on 2026-09-19. |
 
 ## Implementation Reviews
 
 | Issue / PR | Reviewer | Review result | Response / resolution |
 |---|---|---|---|
-| Pending | Pending | Pending | To be filled from GitHub review history. |
+| [PR #41](https://github.com/Thanwarat1303/toktickit/pull/41) | [mxckiexz](https://github.com/mxckiexz) | Changes requested; merged | Data-model and seed review feedback was addressed before merge. |
+| [PR #42](https://github.com/Thanwarat1303/toktickit/pull/42) | [mxckiexz](https://github.com/mxckiexz) | Changes requested; merged | Authentication/session review feedback was addressed before merge. |
+| [PR #43](https://github.com/Thanwarat1303/toktickit/pull/43) | [mxckiexz](https://github.com/mxckiexz) | Changes requested; merged | Login and requester-workspace feedback was addressed before merge. |
+| [PR #44](https://github.com/Thanwarat1303/toktickit/pull/44) | [mxckiexz](https://github.com/mxckiexz) | Approved; merged | Authorization and requester-regression implementation approved. |
+| [PR #45](https://github.com/Thanwarat1303/toktickit/pull/45) | [mxckiexz](https://github.com/mxckiexz) | Changes requested (two reviews); merged | Queue review findings and regression coverage were addressed before merge. |
+| [PR #47](https://github.com/Thanwarat1303/toktickit/pull/47) | [mxckiexz](https://github.com/mxckiexz) | Changes requested, then approved; merged | Atomic claim and workflow review changes were addressed, then approved. |
+| [PR #48](https://github.com/Thanwarat1303/toktickit/pull/48) | [mxckiexz](https://github.com/mxckiexz) | Changes requested (three reviews); merged | Comment/note safety and coverage fixes were merged. |
+| [PR #49](https://github.com/Thanwarat1303/toktickit/pull/49) | [mxckiexz](https://github.com/mxckiexz) | Changes requested (two reviews); merged | Detail/workflow and responsive review changes were merged. |
+| [PR #50](https://github.com/Thanwarat1303/toktickit/pull/50) | [mxckiexz](https://github.com/mxckiexz) | Changes requested (two reviews); merged | Administrator safety and test-isolation changes were merged. |
+| [PR #52](https://github.com/Thanwarat1303/toktickit/pull/52) | [mxckiexz](https://github.com/mxckiexz) | Approved; merged | Lab 3 Playwright foundation approved. |
+| [PR #53](https://github.com/Thanwarat1303/toktickit/pull/53) | [mxckiexz](https://github.com/mxckiexz) | Approved; merged | Release-integration evidence approved. |
+| [PR #54](https://github.com/Thanwarat1303/toktickit/pull/54) | [mxckiexz](https://github.com/mxckiexz) | Changes requested, then approved; merged | Final `release/lab3-main` to `main` release review was approved and merged on 2026-10-04. |
 
 ## Release reviewer details
 
 | Field | Record |
 |---|---|
-| Reviewer name / GitHub account | _Pending independent review_ |
-| Review date | _Pending_ |
-| Review scope | Security, migrations, API behavior, UI, tests, and E2E evidence |
-| Final review decision | _Pending_ |
+| Reviewer name / GitHub account | [mxckiexz](https://github.com/mxckiexz) |
+| Review date | 2026-10-04 |
+| Review scope | Final `release/lab3-main` → `main` review: release evidence, security, migrations, API behavior, UI, tests, and E2E evidence |
+| Final review decision | Approved after changes requested; [PR #54 merged](https://github.com/Thanwarat1303/toktickit/pull/54) |
 
 ## Approved pull requests
 
@@ -38,7 +49,8 @@ Complete this record with facts after review. Do not list yourself as the indepe
 | IT Staff Ticket Detail UI | [PR #49](https://github.com/Thanwarat1303/toktickit/pull/49) | Changes requested → merged |
 | Administrator user management | [PR #50](https://github.com/Thanwarat1303/toktickit/pull/50) | Changes requested → merged |
 | Lab 3 Test/E2E coverage | [PR #52](https://github.com/Thanwarat1303/toktickit/pull/52) | Approved → merged |
-| Final evidence and release integration | _Add this PR after it is opened_ | _Pending independent review_ |
+| Final evidence and release integration | [PR #53](https://github.com/Thanwarat1303/toktickit/pull/53) | Approved → merged |
+| Final Lab 3 release to `main` | [PR #54](https://github.com/Thanwarat1303/toktickit/pull/54) | Changes requested → approved → merged |
 
 ## Collaborator implementation PRs
 
@@ -86,8 +98,10 @@ numbered PRs in the two repositories must not be treated as interchangeable.
 
 ### Final reviewer action
 
-The independent reviewer should inspect this table against the GitHub history, add the real PR
-links and their GitHub account, then record the final approval in the release reviewer details.
+The final release review is recorded in [PR #54](https://github.com/Thanwarat1303/toktickit/pull/54):
+`mxckiexz` first requested changes and then approved the release. The PR was merged from
+`release/lab3-main` to `main` on 2026-10-04. This document summarizes the material history;
+the linked GitHub threads remain the source for the original comment wording.
 
 ### Verified resolution dates
 
@@ -101,8 +115,8 @@ resolving commits, not guessed from chat history.
 
 ## Review Checklist
 
-- [ ] Reviewer identity and PR link are recorded.
-- [ ] Each change request is quoted from the real review thread.
-- [ ] The response and resulting commit are recorded.
-- [ ] Approval or merge evidence is linked.
-- [ ] Final `main` branch is checked before submission.
+- [x] Reviewer identity and PR links are recorded.
+- [ ] Every change request is quoted verbatim here; use the linked GitHub review threads for original wording.
+- [x] Material responses and resulting commits are recorded.
+- [x] Approval or merge evidence is linked.
+- [x] Final `main` release is recorded in PR #54.
