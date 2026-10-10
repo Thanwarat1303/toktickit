@@ -59,7 +59,7 @@ Excluded: SLA automation, notifications, inventory/cost accounting, approval wor
 - **BR-12** RESOLVED requires an owner, a COMPLETED action and no PLANNED/IN_PROGRESS action.
 - **BR-13** Each action create/edit and ticket status write locks the Ticket first in one transaction. The gate check and status update occur while locked.
 - **BR-14** Confirmation remains required for RESOLVED, CLOSED, REOPENED and CANCELLED; error order is 401, 403, 400, 404, 409.
-- **BR-15** `Ticket.version` and `ActionTaken.version` start at 1. Ticket claim/assign/priority/status/mark-resolved and action edit require the loaded version; stale writes return `409 STALE_VERSION`.
+- **BR-15** `Ticket.version` and `ActionTaken.version` start at 1. Ticket claim/assign/priority/status/mark-resolved and action edit require the loaded version; stale writes return `409 STALE_VERSION`. The former Lab 3 `PATCH /api/staff/tickets/:id/workflow` route is retained only for `itPriority`; it rejects `status` and `confirm`. Status changes have exactly one write route: `PATCH /api/staff/tickets/:id/status`.
 - **BR-16** Comments and notes append rows and neither require nor bump `Ticket.version`.
 - **BR-17** Dashboard data is calculated on the server. “Open” is NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER or REOPENED.
 - **BR-18** “Recently” is the last seven calendar days in Asia/Bangkok; timestamps remain UTC.
@@ -79,7 +79,7 @@ Seed data is idempotent and demonstrates all ticket statuses/priorities, owned/u
 
 ## 7. Ticket workflow
 
-The existing eight statuses remain: NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, RESOLVED, CLOSED, REOPENED and CANCELLED. The API returns `allowedTransitions` and `resolutionGate`; the UI only offers those transitions. A stale ticket write is rejected with the current version. The backend—not the client—enforces transitions and BR-12.
+The existing eight statuses remain: NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, RESOLVED, CLOSED, REOPENED and CANCELLED. The API returns `allowedTransitions` and `resolutionGate`; the UI only offers those transitions. A stale ticket write is rejected with the current version. The backend—not the client—enforces transitions and BR-12. `PATCH /api/staff/tickets/:id/status` is the only status-transition endpoint. The retained Lab 3 `/workflow` route handles `itPriority` alone and cannot change status.
 
 ## 8. Acceptance criteria
 

@@ -19,9 +19,9 @@ Create returns 201; valid patch returns 200. Invalid fields/missing version retu
 
 `GET /api/staff/tickets/:id` returns `version`, `allowedTransitions` and `resolutionGate: { ok, unmet }`.
 
-`PATCH /api/staff/tickets/:id/status` requires `{ currentStatus, confirm?, version }`. It returns the updated ticket/version/gate, 400 for invalid body, 409 for `ILLEGAL_TRANSITION`, `RESOLUTION_GATE` or `STALE_VERSION`.
+`PATCH /api/staff/tickets/:id/status` is the **only** route that changes `currentStatus`. It requires `{ currentStatus, confirm?, version }`. It returns the updated ticket/version/gate, 400 for invalid body, 409 for `ILLEGAL_TRANSITION`, `RESOLUTION_GATE` or `STALE_VERSION`.
 
-Existing claim, assign, priority and mark-resolved routes require a current ticket `version`, return the incremented version, and return 400/409 for missing/stale versions. Comments and notes remain append-only and unversioned.
+`PATCH /api/staff/tickets/:id/workflow` is retained for Lab 3 compatibility but is now **IT-priority only**: its body is exactly `{ "itPriority": "Low"|"Medium"|"High"|"Urgent", "version": number }`. Supplying `status` or `confirm` to this route is `400` at `errors.status` / `errors.confirm`; it never changes `currentStatus`. Existing claim, assign, this priority route and mark-resolved require a current ticket `version`, return the incremented version, and return 400/409 for missing/stale versions. Comments and notes remain append-only and unversioned.
 
 ## Dashboards
 

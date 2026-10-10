@@ -9,7 +9,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-16 | resolved/closed action policy | direct open-action create on RESOLVED/CLOSED/CANCELLED is rejected | Planned |
 | API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Planned |
 | API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Planned |
-| API-22 | ticket versioning | claim/assign/priority/status/mark-resolved stale/missing/current cases | Planned |
+| API-22 | ticket versioning and route separation | claim/assign/priority/status/mark-resolved stale/missing/current cases; legacy `/workflow` changes priority only and rejects status/confirm | Planned |
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
 | API-25..28 | dashboards | values and drill-down sets equal raw database queries | Planned |
@@ -34,4 +34,4 @@ All rows are **Planned** until implementation evidence is recorded.
 
 ## Lab 3 regression changes expected
 
-Staff ticket-detail tests will provide ticket version and satisfy the resolution gate before resolving. Administrator ticket operations now succeed where Lab 3 expected 403. Client tests assert version in ticket-write bodies. Existing comments/notes remain unversioned. Every altered Lab 3 expectation is updated in the same feature PR that changes the behaviour.
+Staff ticket-detail tests will provide ticket version and satisfy the resolution gate before resolving. The existing `/workflow` tests are changed to send only `itPriority`; status assertions move to `/status`, and attempts to send `status`/`confirm` through `/workflow` assert `400`. Administrator ticket operations now succeed where Lab 3 expected 403. Client tests assert version in ticket-write bodies. Existing comments/notes remain unversioned. Every altered Lab 3 expectation is updated in the same feature PR that changes the behaviour.
