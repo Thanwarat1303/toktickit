@@ -13,7 +13,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
 | API-25..28 | dashboards | values and drill-down sets equal raw database queries | Planned |
-| MIG-01..03 | migration and seed | additive migration, rollback plan, idempotent seed | Planned |
+| MIG-01..03 | migration and seed | additive migration, version defaults, revision constraints and idempotent seed | Pass (F2) |
 | UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Planned |
 | UI-07..10 | workflow | legal buttons, gate reasons, confirmation, version sent | Planned |
 | UI-11..14 | dashboards | role navigation, cards, drill-down, loading/empty/error/forbidden | Planned |
@@ -35,3 +35,17 @@ All rows are **Planned** until implementation evidence is recorded.
 ## Lab 3 regression changes expected
 
 Staff ticket-detail tests will provide ticket version and satisfy the resolution gate before resolving. The existing `/workflow` tests are changed to send only `itPriority`; status assertions move to `/status`, and attempts to send `status`/`confirm` through `/workflow` assert `400`. Administrator ticket operations now succeed where Lab 3 expected 403. Client tests assert version in ticket-write bodies. Existing comments/notes remain unversioned. Every altered Lab 3 expectation is updated in the same feature PR that changes the behaviour.
+
+## F2 evidence: Actions Taken schema, migration and seed
+
+- `server/tests/lab-04/migration.api.test.ts` replays the real Lab 1-3
+  migrations in a scratch schema, applies the Lab 4 SQL, and checks that the
+  existing ticket remains unchanged except for `version = 1`, required indexes
+  and defaults exist, and duplicate revision numbers are rejected.
+- `server/tests/lab-04/actions-taken-data.test.ts` verifies seed idempotency,
+  status/priority coverage, zero/one/many action fixtures, the resolved/closed
+  invariant, revision 1 snapshots, and zero/non-zero dashboard fixtures.
+- The migration is additive. It adds `ActionStatus`, `ActionTaken`,
+  `ActionTakenRevision` and `Ticket.version` only. The migration file documents
+  manual rollback in reverse dependency order; production rollback restores the
+  pre-migration database backup rather than dropping populated Action Taken data.

@@ -88,6 +88,27 @@ The seeded categories are:
 
 The seed uses Prisma `upsert`, so it can be run more than once without creating duplicate categories.
 
+## Lab 4: Actions Taken migration and seed
+
+Before applying the Lab 4 migration to a database containing real data, create
+a backup. Then run the migration and seed:
+
+```powershell
+cd server
+pg_dump -Fc "$env:DATABASE_URL" -f ..\before-lab4.dump
+npx prisma migrate deploy
+npx prisma db seed
+```
+
+The migration is additive: it adds `ActionStatus`, `ActionTaken`,
+`ActionTakenRevision`, and `Ticket.version` (default `1`) without changing
+existing rows. The seed creates deterministic demo tickets `TKT-SEED-001` to
+`TKT-SEED-012` and their Action Taken history; it is safe to run again.
+
+To undo a populated production/dev database, restore the backup. The SQL inverse
+documented in the Lab 4 migration is only safe before any Action Taken data has
+been created, because it deliberately drops the new tables.
+
 ## Run the Application
 
 ### Backend
