@@ -4,7 +4,8 @@ All rows are **Planned** until implementation evidence is recorded.
 
 | ID | Area | Expected result | Status |
 |---|---|---|---|
-| API-01..08 | action create/list/ownership/validation | server author, stable order, safe 400/403/404 | Planned |
+| API-01..04 | action create/list/ownership/validation | server author, stable order, safe 400/401/403/404 | Pass (F3) |
+| API-05..08 | action create edge cases | assignee/date/status/ticket-state validation | Planned |
 | API-09..15 | action edit/final/delete/version | no lost update, no delete, final action protected | Planned |
 | API-16 | resolved/closed action policy | direct open-action create on RESOLVED/CLOSED/CANCELLED is rejected | Planned |
 | API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Planned |
@@ -49,3 +50,10 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   `ActionTakenRevision` and `Ticket.version` only. The migration file documents
   manual rollback in reverse dependency order; production rollback restores the
   pre-migration database backup rather than dropping populated Action Taken data.
+
+## F3 evidence: Actions Taken create/list API and authorization
+
+- `server/tests/lab-04/actions-taken.api.test.ts` verifies Staff/Admin creates,
+  a server-derived performer, revision 1, Requester ownership concealment,
+  stable `actionAt`/`id` ordering, 401/403 write denial, and field-level 400
+  validation without a partial write.
