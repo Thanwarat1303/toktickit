@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { Prisma, Priority } from "@prisma/client";
+import { ActionStatus, Prisma, Priority } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -826,6 +826,135 @@ app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAut
 // Requesters may access only their own ticket; IT Staff can access the shared
 // queue.  Internal notes never pass through a Requester response path.
 const communicationLimit = 2000;
+
+// Lab 4, Issue #58 — Actions Taken use a separate, append-only work log. A
+// Requester may read current actions for their own ticket only; Staff and
+// Administrators share the operational view. Writes are handled below and
+// always derive the performer from the session rather than the request body.
+const actionTextLimit = 2000;
+const actionCreateStatuses = new Set<ActionStatus>([
+  ActionStatus.PLANNED,
+  ActionStatus.IN_PROGRESS,
+  ActionStatus.COMPLETED,
+]);
+
+function actionResponse(action: {
+  id: number; ticketId: number; performedById: number; assigneeId: number | null;
+  status: ActionStatus; actionAt: Date; description: string; result: string;
+  followUpRequired: boolean; followUpNote: string; attachmentNotes: string;
+  version: number; createdAt: Date; updatedAt: Date;
+  performedBy: { id: number; name: string }; assignee: { id: number; name: string } | null;
+}) {
+  return {
+    id: action.id, ticketId: action.ticketId, performedBy: action.performedBy,
+    assignee: action.assignee, status: action.status, actionAt: action.actionAt,
+    description: action.description, result: action.result,
+    followUpRequired: action.followUpRequired, followUpNote: action.followUpNote,
+    attachmentNotes: action.attachmentNotes, version: action.version,
+    createdAt: action.createdAt, updatedAt: action.updatedAt,
+  };
+}
+
+function optionalActionText(value: unknown, field: string, errors: Record<string, string>) {
+  if (value === undefined) return "";
+  if (typeof value !== "string") { errors[field] = "Must be text."; return ""; }
+  const text = value.trim();
+  if (text.length > actionTextLimit) errors[field] = `Must not exceed ${actionTextLimit} characters.`;
+  return text;
+}
+
+function actionCreateBody(body: unknown): { value?: {
+  description: string; result: string; followUpRequired: boolean; followUpNote: string;
+  attachmentNotes: string; actionAt: Date; status: ActionStatus; assigneeId: number | null;
+}; errors: Record<string, string> } {
+  const source = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const errors: Record<string, string> = {};
+  const description = typeof source.description === "string" ? source.description.trim() : "";
+  if (!description) errors.description = "Description is required.";
+  else if (description.length > actionTextLimit) errors.description = `Must not exceed ${actionTextLimit} characters.`;
+  const result = optionalActionText(source.result, "result", errors);
+  const attachmentNotes = optionalActionText(source.attachmentNotes, "attachmentNotes", errors);
+  const rawFollowUpRequired = source.followUpRequired;
+  if (rawFollowUpRequired !== undefined && typeof rawFollowUpRequired !== "boolean") errors.followUpRequired = "Must be true or false.";
+  const followUpRequired = rawFollowUpRequired === true;
+  const followUpNote = optionalActionText(source.followUpNote, "followUpNote", errors);
+  if (followUpRequired === true && !followUpNote) errors.followUpNote = "A follow-up note is required when follow-up is required.";
+  const status = source.status === undefined ? ActionStatus.PLANNED : source.status;
+  if (!actionCreateStatuses.has(status as ActionStatus)) errors.status = "Create accepts PLANNED, IN_PROGRESS, or COMPLETED.";
+  if (status === ActionStatus.COMPLETED && !result) errors.result = "A result is required for a completed action.";
+  const actionAt = source.actionAt === undefined ? new Date() : typeof source.actionAt === "string" ? new Date(source.actionAt) : new Date("");
+  if (Number.isNaN(actionAt.getTime())) errors.actionAt = "Must be a valid ISO date-time.";
+  else if (actionAt.getTime() > Date.now() + 5 * 60_000) errors.actionAt = "Cannot be more than five minutes in the future.";
+  const assigneeId = source.assigneeId === undefined || source.assigneeId === null ? null : source.assigneeId;
+  if (assigneeId !== null && !positiveInteger(assigneeId)) errors.assigneeId = "Must be an active IT Staff or Administrator id, or null.";
+  if (Object.keys(errors).length) return { errors };
+  return { value: { description, result, followUpRequired, followUpNote, attachmentNotes, actionAt, status: status as ActionStatus, assigneeId: assigneeId as number | null }, errors };
+}
+
+async function requesterOwnsTicket(req: AuthenticatedRequest, ticketId: number) {
+  const requesterId = await authenticatedRequesterId(req);
+  return !!requesterId && !!(await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } }));
+}
+
+app.get("/api/tickets/:ticketId/actions", requireAuth, requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  const role = req.auth!.user.role;
+  if (role !== "REQUESTER" && role !== "IT_STAFF" && role !== "ADMINISTRATOR") return authError(res, 403, "FORBIDDEN", "You do not have permission to view actions.");
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+    if (role === "REQUESTER" && !(await requesterOwnsTicket(req, ticketId))) return res.status(404).json({ message: "Ticket was not found" });
+    const actions = await prisma.actionTaken.findMany({
+      where: { ticketId },
+      include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      orderBy: [{ actionAt: "asc" }, { id: "asc" }],
+    });
+    return res.status(200).json({ actions: actions.map(actionResponse) });
+  } catch { return res.status(500).json({ message: "Unable to load actions." }); }
+});
+
+app.post("/api/tickets/:ticketId/actions", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireSameOrigin, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  const parsed = actionCreateBody(req.body);
+  if (!parsed.value) return res.status(400).json({ error: "Validation failed.", errors: parsed.errors });
+  try {
+    const prisma = getPrisma();
+    if (parsed.value.assigneeId !== null) {
+      const assignee = await prisma.user.findUnique({ where: { id: parsed.value.assigneeId }, select: { role: true, isActive: true } });
+      if (!assignee || !assignee.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role)) {
+        return res.status(400).json({ error: "Validation failed.", errors: { assigneeId: "Must identify an active IT Staff or Administrator." } });
+      }
+    }
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string }>>(Prisma.sql`SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+      const ticket = locked[0];
+      if (!ticket) return { kind: "missing" as const };
+      if (ticket.currentStatus === "Closed" || ticket.currentStatus === "Cancelled") return { kind: "closed" as const };
+      if (ticket.currentStatus === "Resolved" && parsed.value!.status !== ActionStatus.COMPLETED) return { kind: "resolved" as const };
+      const action = await tx.actionTaken.create({
+        data: { ticketId, performedById: req.auth!.user.id, ...parsed.value! },
+        include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      });
+      await tx.actionTakenRevision.create({
+        data: {
+          actionTakenId: action.id, revision: 1, editedById: req.auth!.user.id, editedAt: action.createdAt,
+          status: action.status, assigneeId: action.assigneeId, actionAt: action.actionAt,
+          description: action.description, result: action.result, followUpRequired: action.followUpRequired,
+          followUpNote: action.followUpNote, attachmentNotes: action.attachmentNotes,
+        },
+      });
+      return { kind: "created" as const, action };
+    });
+    if (result.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
+    if (result.kind === "closed") return res.status(409).json({ error: "Actions cannot be changed on a closed or cancelled ticket.", code: "TICKET_CLOSED" });
+    if (result.kind === "resolved") return res.status(409).json({ error: "Reopen the ticket before adding open work.", code: "TICKET_RESOLVED" });
+    return res.status(201).json(actionResponse(result.action));
+  } catch { return res.status(500).json({ message: "Unable to create action." }); }
+});
+
 async function canAccessTicketCommunication(req: AuthenticatedRequest, ticketId: number, allowRequester: boolean) {
   const role = req.auth!.user.role;
   if (role === "IT_STAFF" || role === "ADMINISTRATOR") return true;
