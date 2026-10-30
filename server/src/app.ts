@@ -1047,7 +1047,12 @@ app.patch("/api/tickets/:ticketId/actions/:actionId", requireAuth, requireRole("
       if (!parsed.value) return { kind: "invalid" as const, errors: parsed.errors };
       if (!actionEditMoveAllowed(stored.status, parsed.value.status)) return { kind: "invalid" as const, errors: { status: `Cannot move an action from ${stored.status} to ${parsed.value.status}.` } };
       if (ticket.currentStatus === "Resolved" && openActionStatuses.has(parsed.value.status)) return { kind: "resolved" as const };
-      if (!(await eligibleActionAssignee(parsed.value.assigneeId))) return { kind: "invalid" as const, errors: { assigneeId: "Must identify an active IT Staff or Administrator." } };
+      // An existing action may legitimately remain assigned to a former staff
+      // member. Only validate assignee eligibility when this PATCH actually
+      // changes (or explicitly re-sends) assigneeId.
+      if (source.assigneeId !== undefined && !(await eligibleActionAssignee(parsed.value.assigneeId))) {
+        return { kind: "invalid" as const, errors: { assigneeId: "Must identify an active IT Staff or Administrator." } };
+      }
 
       const update = await tx.actionTaken.updateMany({
         where: { id: actionId, ticketId, version: stored.version },

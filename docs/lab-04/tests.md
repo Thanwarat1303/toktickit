@@ -6,7 +6,7 @@ All rows are **Planned** until implementation evidence is recorded.
 |---|---|---|---|
 | API-01..04 | action create/list/ownership/validation | server author, stable order, safe 400/401/403/404 | Pass (F3) |
 | API-05..08 | action create edge cases | assignee/date/status/ticket-state validation | Planned |
-| API-09..15 | action edit/final/delete/version | no lost update, no delete, final action protected | Pass (F4) |
+| API-09..15 | action edit/final/delete/version | no lost update, no delete, final action protected; an existing inactive assignee does not block an edit unless `assigneeId` is explicitly supplied | Pass (F4) |
 | API-16 | resolved/closed action policy | direct open-action create on RESOLVED/CLOSED/CANCELLED is rejected | Pass (F4) |
 | API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Planned |
 | API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Planned |

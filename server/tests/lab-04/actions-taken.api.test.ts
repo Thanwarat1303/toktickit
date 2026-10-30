@@ -152,6 +152,27 @@ describe("Lab 4 Actions Taken create/list authorization", () => {
     expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(1);
   });
 
+  it("API-09 regression: permits a non-assignee edit after the existing assignee is deactivated, but still rejects explicitly selecting them", async () => {
+    const created = await admin.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+      description: "Document the departing staff member's work", assigneeId: staffId,
+    }).expect(201);
+    await prisma.user.update({ where: { id: staffId }, data: { isActive: false } });
+    try {
+      const updated = await admin.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+        version: 1, description: "Documented the departing staff member's work",
+      }).expect(200);
+      expect(updated.body).toMatchObject({ version: 2, description: "Documented the departing staff member's work", assignee: { id: staffId } });
+
+      const explicitAssignee = await admin.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+        version: 2, assigneeId: staffId,
+      }).expect(400);
+      expect(explicitAssignee.body.errors.assigneeId).toEqual(expect.any(String));
+      expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(2);
+    } finally {
+      await prisma.user.update({ where: { id: staffId }, data: { isActive: true } });
+    }
+  });
+
   it("API-12, API-15 and API-24: final actions cannot be edited or deleted, and Requesters cannot edit or view history", async () => {
     const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({
       description: "Completed replacement", status: "COMPLETED", result: "Replacement tested successfully.",
