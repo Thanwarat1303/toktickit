@@ -10,7 +10,8 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-16 | resolved/closed action policy | direct open-action create on RESOLVED/CLOSED/CANCELLED is rejected | Pass (F4) |
 | API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Planned |
 | API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Planned |
-| API-22 | ticket versioning and route separation | claim/assign/priority/status/mark-resolved stale/missing/current cases; legacy `/workflow` changes priority only and rejects status/confirm | Planned |
+| API-22a | ticket-write versioning | existing claim, owner assignment and workflow writes reject a missing/stale version and increment the ticket version exactly once on success | Pass (F5) |
+| API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Planned |
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
 | API-25..28 | dashboards | values and drill-down sets equal raw database queries | Planned |
@@ -64,3 +65,16 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   immutable revisions in oldest-first order, stale versions, invalid status moves, merged
   completed/follow-up validation, final-action protection, no delete route, revision-history
   authorization, and the RESOLVED open-action restriction.
+
+## F5 evidence: Ticket versioning for existing staff writes
+
+- `Ticket.version` is returned by both requester and staff ticket-detail responses. The staff
+  client sends that loaded value when it claims a ticket, changes its owner, changes IT priority,
+  or uses the existing Lab 3 workflow control.
+- The existing claim, owner and workflow routes reject a missing version with a field-level 400.
+  They write with `id` and `version` together and increment `version` in the same database update.
+  A stale request returns `409 STALE_VERSION` with `currentVersion` and does not overwrite the
+  later data.
+- `server/tests/lab-03/staff-ticket-detail.api.test.ts` supplies the current version on every
+  successful Lab 3 staff write and verifies missing/stale workflow requests leave ticket fields
+  unchanged. The final route split and resolution gate remain planned for F6.

@@ -61,6 +61,7 @@ export interface TicketListItem {
 
 export interface TicketDetail {
   id: number;
+  version: number;
   ticketNumber: string;
   requester: Requester;
   category: Category;
@@ -139,6 +140,7 @@ export interface StaffTicketQueueQuery {
 }
 
 export interface StaffTicketDetail extends Omit<StaffTicketSummary, "requesterName" | "owner"> {
+  version: number;
   requester: Requester;
   owner: { id: number; name: string; email: string } | null;
   attachments: AttachmentSummary[];
@@ -198,8 +200,10 @@ export async function logout(csrfToken: string) {
 
 async function getErrorMessage(response: Response, fallback: string) {
   try {
-    const data: { message?: unknown } = await response.json();
-    return typeof data.message === "string" ? data.message : fallback;
+    const data: { message?: unknown; error?: unknown } = await response.json();
+    if (typeof data.message === "string") return data.message;
+    if (typeof data.error === "string") return data.error;
+    return fallback;
   } catch {
     return fallback;
   }
@@ -422,16 +426,16 @@ async function staffMutation<T>(path: string, method: "POST" | "PATCH", csrfToke
   return response.json() as Promise<T>;
 }
 
-export function claimStaffTicket(ticketId: number, csrfToken: string) {
-  return staffMutation<{ id: number; owner: { id: number; name: string } | null; updatedAt: string }>(`/api/staff/tickets/${ticketId}/claim`, "POST", csrfToken);
+export function claimStaffTicket(ticketId: number, version: number, csrfToken: string) {
+  return staffMutation<{ id: number; owner: { id: number; name: string } | null; version: number; updatedAt: string }>(`/api/staff/tickets/${ticketId}/claim`, "POST", csrfToken, { version });
 }
 
-export function updateStaffTicketOwner(ticketId: number, ownerId: number | null, csrfToken: string) {
-  return staffMutation<{ id: number; owner: { id: number; name: string } | null; updatedAt: string }>(`/api/staff/tickets/${ticketId}/owner`, "PATCH", csrfToken, { ownerId });
+export function updateStaffTicketOwner(ticketId: number, ownerId: number | null, version: number, csrfToken: string) {
+  return staffMutation<{ id: number; owner: { id: number; name: string } | null; version: number; updatedAt: string }>(`/api/staff/tickets/${ticketId}/owner`, "PATCH", csrfToken, { ownerId, version });
 }
 
-export function updateStaffTicketWorkflow(ticketId: number, input: { itPriority?: StaffTicketSummary["itPriority"]; status?: WorkflowStatus; confirm?: true }, csrfToken: string) {
-  return staffMutation<{ id: number; itPriority: StaffTicketSummary["itPriority"]; status: WorkflowStatus; updatedAt: string }>(`/api/staff/tickets/${ticketId}/workflow`, "PATCH", csrfToken, input);
+export function updateStaffTicketWorkflow(ticketId: number, input: { itPriority?: StaffTicketSummary["itPriority"]; status?: WorkflowStatus; confirm?: true; version: number }, csrfToken: string) {
+  return staffMutation<{ id: number; itPriority: StaffTicketSummary["itPriority"]; status: WorkflowStatus; version: number; updatedAt: string }>(`/api/staff/tickets/${ticketId}/workflow`, "PATCH", csrfToken, input);
 }
 
 export async function getAssignableStaffUsers(): Promise<AssignableStaffUser[]> {

@@ -710,6 +710,7 @@ app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), re
 
     return res.status(200).json({
       id: ticket.id,
+      version: ticket.version,
       ticketNumber: ticket.ticketNumber,
       requester: ticket.requester,
       category: ticket.category,
@@ -733,19 +734,22 @@ app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), re
 
 app.post("/api/staff/tickets/:ticketId/claim", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
+  const version = req.body?.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
 
   try {
     const prisma = getPrisma();
-    const result = await prisma.ticket.updateMany({ where: { id: ticketId, assignedStaffId: null }, data: { assignedStaffId: req.auth!.user.id } });
+    const result = await prisma.ticket.updateMany({ where: { id: ticketId, assignedStaffId: null, version }, data: { assignedStaffId: req.auth!.user.id, version: { increment: 1 } } });
     if (result.count === 1) {
       const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
-      return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+      return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
     }
 
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
     if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-    if (ticket.assignedStaffId === req.auth!.user.id) return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    if (ticket.version !== version) return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: ticket.version });
+    if (ticket.assignedStaffId === req.auth!.user.id) return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
     return res.status(409).json({ message: "Ticket is already claimed by another staff member" });
   } catch {
     return res.status(500).json({ message: "Unable to claim ticket" });
@@ -755,8 +759,10 @@ app.post("/api/staff/tickets/:ticketId/claim", requireSameOrigin, requireAuth, r
 app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   const ownerId = req.body?.ownerId;
+  const version = req.body?.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
   if (ownerId !== null && !positiveInteger(ownerId)) return res.status(400).json({ message: "ownerId must be an active IT Staff id or null" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
 
   try {
     const prisma = getPrisma();
@@ -767,16 +773,14 @@ app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, 
       }
     }
 
-    const ticket = await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { assignedStaffId: ownerId },
-      include: { assignedStaff: { select: { id: true, name: true } } },
-    }).catch((error: unknown) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return null;
-      throw error;
-    });
-    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-    return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    const result = await prisma.ticket.updateMany({ where: { id: ticketId, version }, data: { assignedStaffId: ownerId, version: { increment: 1 } } });
+    if (result.count !== 1) {
+      const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+      if (!current) return res.status(404).json({ message: "Ticket was not found" });
+      return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: current.version });
+    }
+    const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
+    return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
   } catch {
     return res.status(500).json({ message: "Unable to update ticket owner" });
   }
@@ -789,7 +793,9 @@ app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAut
   const hasStatus = Object.prototype.hasOwnProperty.call(body, "status");
   const itPriority = body.itPriority;
   const status = body.status;
+  const version = body.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
   if (!hasItPriority && !hasStatus) return res.status(400).json({ message: "Provide itPriority, status, or both" });
   if (hasItPriority && (typeof itPriority !== "string" || !(itPriority in itPriorityValues))) {
     return res.status(400).json({ message: "itPriority must be Low, Medium, High, or Urgent" });
@@ -801,22 +807,23 @@ app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAut
 
   try {
     const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true, version: true } });
     if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
     if (hasStatus && !allowedStaffTransitions[ticket.currentStatus as (typeof ticketStatuses)[number]]?.includes(status)) {
       return res.status(409).json({ message: `Cannot transition from ${ticket.currentStatus} to ${status}` });
     }
 
     const update = await prisma.ticket.updateMany({
-      where: { id: ticketId, ...(hasStatus ? { currentStatus: ticket.currentStatus } : {}) },
+      where: { id: ticketId, version, ...(hasStatus ? { currentStatus: ticket.currentStatus } : {}) },
       data: {
         ...(hasItPriority ? { itPriority: itPriorityValues[itPriority] } : {}),
         ...(hasStatus ? { currentStatus: status } : {}),
+        version: { increment: 1 },
       },
     });
-    if (update.count !== 1) return res.status(409).json({ message: "Ticket workflow was changed by another request; refresh and try again" });
-    const updatedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, itPriority: true, currentStatus: true, updatedAt: true } });
-    return res.status(200).json({ id: updatedTicket.id, itPriority: formatPriority(updatedTicket.itPriority), status: updatedTicket.currentStatus, updatedAt: updatedTicket.updatedAt });
+    if (update.count !== 1) { const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } }); return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: current?.version ?? version }); }
+    const updatedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, itPriority: true, currentStatus: true, version: true, updatedAt: true } });
+    return res.status(200).json({ id: updatedTicket.id, itPriority: formatPriority(updatedTicket.itPriority), status: updatedTicket.currentStatus, version: updatedTicket.version, updatedAt: updatedTicket.updatedAt });
   } catch {
     return res.status(500).json({ message: "Unable to update ticket workflow" });
   }
@@ -1183,6 +1190,7 @@ app.get("/api/tickets/:ticketId", requireAuth, requireRole("REQUESTER"), require
 
     return res.status(200).json({
       id: ticket.id,
+      version: ticket.version,
       ticketNumber: ticket.ticketNumber,
       requester: ticket.requester,
       category: ticket.category,
