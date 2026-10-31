@@ -20,6 +20,14 @@ let requesterAgent: request.Agent;
 let staffCsrfToken: string;
 let otherStaffCsrfToken: string;
 
+async function currentTicketVersion() {
+  const ticket = await prisma.ticket.findUniqueOrThrow({
+    where: { id: ticketId },
+    select: { version: true },
+  });
+  return ticket.version;
+}
+
 beforeAll(async () => {
   const passwordHash = await hashPassword(password);
   const [staffA, staffB, requester, inactiveStaff, category, relatedSystem] = await Promise.all([
@@ -105,6 +113,7 @@ describe("IT Staff ticket operations", () => {
       .post(`/api/staff/tickets/${ticketId}/claim`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
+      .send({ version: await currentTicketVersion() })
       .expect(200)
       .expect((response) => expect(response.body.owner).toMatchObject({ id: staffAId, name: "Detail Staff A" }));
 
@@ -112,6 +121,7 @@ describe("IT Staff ticket operations", () => {
       .post(`/api/staff/tickets/${ticketId}/claim`)
       .set("Origin", origin)
       .set("X-CSRF-Token", otherStaffCsrfToken)
+      .send({ version: await currentTicketVersion() })
       .expect(409);
   });
 
@@ -120,7 +130,7 @@ describe("IT Staff ticket operations", () => {
       .patch(`/api/staff/tickets/${ticketId}/owner`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ ownerId: staffBId })
+      .send({ ownerId: staffBId, version: await currentTicketVersion() })
       .expect(200)
       .expect((response) => expect(response.body.owner).toMatchObject({ id: staffBId, name: "Detail Staff B" }));
 
@@ -128,21 +138,21 @@ describe("IT Staff ticket operations", () => {
       .patch(`/api/staff/tickets/${ticketId}/owner`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ ownerId: inactiveStaffId })
+      .send({ ownerId: inactiveStaffId, version: await currentTicketVersion() })
       .expect(400);
 
     await staffAgent
       .patch(`/api/staff/tickets/${ticketId}/owner`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ ownerId: requesterUserId })
+      .send({ ownerId: requesterUserId, version: await currentTicketVersion() })
       .expect(400);
 
     await staffAgent
       .patch(`/api/staff/tickets/${ticketId}/owner`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ ownerId: null })
+      .send({ ownerId: null, version: await currentTicketVersion() })
       .expect(200)
       .expect((response) => expect(response.body.owner).toBeNull());
   });
@@ -152,14 +162,14 @@ describe("IT Staff ticket operations", () => {
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ status: "Cancelled" })
+      .send({ status: "Cancelled", version: await currentTicketVersion() })
       .expect(400);
 
     await staffAgent
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ itPriority: "Urgent", status: "Open" })
+      .send({ itPriority: "Urgent", status: "Open", version: await currentTicketVersion() })
       .expect(200)
       .expect((response) => expect(response.body).toMatchObject({ id: ticketId, itPriority: "Urgent", status: "Open" }));
 
@@ -167,22 +177,52 @@ describe("IT Staff ticket operations", () => {
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ status: "New" })
+      .send({ status: "New", version: await currentTicketVersion() })
       .expect(409);
 
     await staffAgent
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ itPriority: "Critical" })
+      .send({ itPriority: "Critical", version: await currentTicketVersion() })
       .expect(400);
 
     await staffAgent
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ status: "Cancelled", confirm: true })
+      .send({ status: "Cancelled", confirm: true, version: await currentTicketVersion() })
       .expect(200)
       .expect((response) => expect(response.body.status).toBe("Cancelled"));
+  });
+
+  it("requires a current ticket version and never applies a stale workflow write", async () => {
+    await staffAgent
+      .patch(`/api/staff/tickets/${ticketId}/workflow`)
+      .set("Origin", origin)
+      .set("X-CSRF-Token", staffCsrfToken)
+      .send({ itPriority: "High" })
+      .expect(400)
+      .expect((response) => expect(response.body.errors).toHaveProperty("version"));
+
+    const before = await prisma.ticket.findUniqueOrThrow({
+      where: { id: ticketId },
+      select: { version: true, itPriority: true, currentStatus: true },
+    });
+    await prisma.ticket.update({ where: { id: ticketId }, data: { version: { increment: 1 } } });
+
+    await staffAgent
+      .patch(`/api/staff/tickets/${ticketId}/workflow`)
+      .set("Origin", origin)
+      .set("X-CSRF-Token", staffCsrfToken)
+      .send({ itPriority: "High", version: before.version })
+      .expect(409)
+      .expect((response) => expect(response.body).toMatchObject({ code: "STALE_VERSION", currentVersion: before.version + 1 }));
+
+    const after = await prisma.ticket.findUniqueOrThrow({
+      where: { id: ticketId },
+      select: { version: true, itPriority: true, currentStatus: true },
+    });
+    expect(after).toEqual({ ...before, version: before.version + 1 });
   });
 });
