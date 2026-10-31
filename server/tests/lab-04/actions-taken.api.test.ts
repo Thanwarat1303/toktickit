@@ -55,6 +55,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // A failed database connection means beforeAll never assigned fixture ids.
+  // Keep cleanup from hiding that real setup failure with a second error.
+  if (!ticketId || !otherTicketId) {
+    await prisma.$disconnect();
+    return;
+  }
   await prisma.actionTakenRevision.deleteMany({ where: { actionTaken: { ticketId: { in: [ticketId, otherTicketId] } } } });
   await prisma.actionTaken.deleteMany({ where: { ticketId: { in: [ticketId, otherTicketId] } } });
   await prisma.ticket.deleteMany({ where: { id: { in: [ticketId, otherTicketId] } } });
@@ -108,5 +114,85 @@ describe("Lab 4 Actions Taken create/list authorization", () => {
     }).expect(400);
     expect(response.body.errors).toMatchObject({ description: expect.any(String), result: expect.any(String), followUpNote: expect.any(String), actionAt: expect.any(String) });
     expect(await prisma.actionTaken.count({ where: { ticketId } })).toBe(before);
+  });
+
+  it("API-09 and API-23: edits a non-final action with its current version and appends an immutable revision", async () => {
+    const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({
+      description: "Investigate intermittent VPN", assigneeId: staffId,
+    }).expect(201);
+    const updated = await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({
+      version: 1, status: "IN_PROGRESS", description: "VPN logs are being reviewed", followUpRequired: true, followUpNote: "Contact requester after log review.",
+    }).expect(200);
+    expect(updated.body).toMatchObject({ id: created.body.id, version: 2, status: "IN_PROGRESS", description: "VPN logs are being reviewed" });
+
+    const history = await staff.get(`/api/tickets/${ticketId}/actions/${created.body.id}/revisions`).expect(200);
+    expect(history.body.revisions).toHaveLength(2);
+    expect(history.body.revisions[0]).toMatchObject({ revision: 1, description: "Investigate intermittent VPN", status: "PLANNED" });
+    expect(history.body.revisions[1]).toMatchObject({ revision: 2, editedBy: { id: staffId }, status: "IN_PROGRESS", followUpRequired: true });
+  });
+
+  it("API-10 and API-13: rejects a stale version and an invalid status move without changing action or history", async () => {
+    const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ description: "Check DNS records" }).expect(201);
+    await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ version: 1, status: "IN_PROGRESS" }).expect(200);
+    const stale = await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ version: 1, description: "Stale overwrite" }).expect(409);
+    expect(stale.body).toMatchObject({ code: "STALE_VERSION", currentVersion: 2 });
+    const invalid = await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ version: 2, status: "PLANNED" }).expect(400);
+    expect(invalid.body.errors.status).toEqual(expect.any(String));
+    const action = await prisma.actionTaken.findUniqueOrThrow({ where: { id: created.body.id } });
+    expect(action).toMatchObject({ version: 2, status: "IN_PROGRESS", description: "Check DNS records" });
+    expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(2);
+  });
+
+  it("API-11 and API-14: validates the merged result and follow-up rules before writing", async () => {
+    const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ description: "Replace damaged cable" }).expect(201);
+    const response = await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({
+      version: 1, status: "COMPLETED", result: "", followUpRequired: true, followUpNote: "",
+    }).expect(400);
+    expect(response.body.errors).toMatchObject({ result: expect.any(String), followUpNote: expect.any(String) });
+    expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(1);
+  });
+
+  it("API-09 regression: permits a non-assignee edit after the existing assignee is deactivated, but still rejects explicitly selecting them", async () => {
+    const created = await admin.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+      description: "Document the departing staff member's work", assigneeId: staffId,
+    }).expect(201);
+    await prisma.user.update({ where: { id: staffId }, data: { isActive: false } });
+    try {
+      const updated = await admin.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+        version: 1, description: "Documented the departing staff member's work",
+      }).expect(200);
+      expect(updated.body).toMatchObject({ version: 2, description: "Documented the departing staff member's work", assignee: { id: staffId } });
+
+      const explicitAssignee = await admin.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", adminCsrf).send({
+        version: 2, assigneeId: staffId,
+      }).expect(400);
+      expect(explicitAssignee.body.errors.assigneeId).toEqual(expect.any(String));
+      expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(2);
+    } finally {
+      await prisma.user.update({ where: { id: staffId }, data: { isActive: true } });
+    }
+  });
+
+  it("API-12, API-15 and API-24: final actions cannot be edited or deleted, and Requesters cannot edit or view history", async () => {
+    const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({
+      description: "Completed replacement", status: "COMPLETED", result: "Replacement tested successfully.",
+    }).expect(201);
+    await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ version: 1, description: "Do not alter" }).expect(409);
+    await staff.delete(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).expect(404);
+    await requester.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).send({ version: 1, description: "Requester alteration" }).expect(403);
+    await requester.get(`/api/tickets/${ticketId}/actions/${created.body.id}/revisions`).expect(403);
+    expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(1);
+  });
+
+  it("API-16: a resolved ticket rejects an edit that would leave an open action", async () => {
+    const created = await staff.post(`/api/tickets/${ticketId}/actions`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ description: "Open work on resolved ticket" }).expect(201);
+    await prisma.ticket.update({ where: { id: ticketId }, data: { currentStatus: "Resolved" } });
+    try {
+      const response = await staff.patch(`/api/tickets/${ticketId}/actions/${created.body.id}`).set("Origin", origin).set("X-CSRF-Token", staffCsrf).send({ version: 1, description: "Still open work" }).expect(409);
+      expect(response.body.code).toBe("TICKET_RESOLVED");
+      expect(await prisma.actionTakenRevision.count({ where: { actionTakenId: created.body.id } })).toBe(1);
+    } finally {
+      await prisma.ticket.update({ where: { id: ticketId }, data: { currentStatus: "Open" } });
+    }
   });
 });

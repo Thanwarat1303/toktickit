@@ -837,6 +837,9 @@ const actionCreateStatuses = new Set<ActionStatus>([
   ActionStatus.IN_PROGRESS,
   ActionStatus.COMPLETED,
 ]);
+const actionStatuses = new Set<ActionStatus>(Object.values(ActionStatus));
+const openActionStatuses = new Set<ActionStatus>([ActionStatus.PLANNED, ActionStatus.IN_PROGRESS]);
+const finalActionStatuses = new Set<ActionStatus>([ActionStatus.COMPLETED, ActionStatus.CANCELLED]);
 
 function actionResponse(action: {
   id: number; ticketId: number; performedById: number; assigneeId: number | null;
@@ -891,6 +894,73 @@ function actionCreateBody(body: unknown): { value?: {
   return { value: { description, result, followUpRequired, followUpNote, attachmentNotes, actionAt, status: status as ActionStatus, assigneeId: assigneeId as number | null }, errors };
 }
 
+type EditableAction = {
+  status: ActionStatus; assigneeId: number | null; actionAt: Date; description: string;
+  result: string; followUpRequired: boolean; followUpNote: string; attachmentNotes: string;
+};
+
+// Patch validation starts with the stored values. This makes omitted fields stay
+// unchanged while still applying the cross-field rules to the resulting action.
+function actionEditBody(body: unknown, stored: EditableAction): { value?: EditableAction; errors: Record<string, string> } {
+  const source = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const errors: Record<string, string> = {};
+  const value: EditableAction = {
+    status: stored.status, assigneeId: stored.assigneeId, actionAt: stored.actionAt,
+    description: stored.description, result: stored.result,
+    followUpRequired: stored.followUpRequired, followUpNote: stored.followUpNote,
+    attachmentNotes: stored.attachmentNotes,
+  };
+
+  const text = (field: "description" | "result" | "followUpNote" | "attachmentNotes", required: boolean) => {
+    if (source[field] === undefined) return;
+    if (typeof source[field] !== "string") { errors[field] = "Must be text."; return; }
+    const trimmed = source[field].trim();
+    if (required && !trimmed) errors[field] = "Description is required.";
+    else if (trimmed.length > actionTextLimit) errors[field] = `Must not exceed ${actionTextLimit} characters.`;
+    else value[field] = trimmed;
+  };
+  text("description", true);
+  text("result", false);
+  text("followUpNote", false);
+  text("attachmentNotes", false);
+
+  if (source.followUpRequired !== undefined) {
+    if (typeof source.followUpRequired !== "boolean") errors.followUpRequired = "Must be true or false.";
+    else value.followUpRequired = source.followUpRequired;
+  }
+  if (source.status !== undefined) {
+    if (!actionStatuses.has(source.status as ActionStatus)) errors.status = "Must be PLANNED, IN_PROGRESS, COMPLETED, or CANCELLED.";
+    else value.status = source.status as ActionStatus;
+  }
+  if (source.assigneeId !== undefined) {
+    if (source.assigneeId !== null && !positiveInteger(source.assigneeId)) errors.assigneeId = "Must be an active IT Staff or Administrator id, or null.";
+    else value.assigneeId = source.assigneeId as number | null;
+  }
+  if (source.actionAt !== undefined) {
+    const actionAt = typeof source.actionAt === "string" ? new Date(source.actionAt) : new Date("");
+    if (Number.isNaN(actionAt.getTime())) errors.actionAt = "Must be a valid ISO date-time.";
+    else if (actionAt.getTime() > Date.now() + 5 * 60_000) errors.actionAt = "Cannot be more than five minutes in the future.";
+    else value.actionAt = actionAt;
+  }
+  if (value.followUpRequired && !value.followUpNote) errors.followUpNote = "A follow-up note is required when follow-up is required.";
+  if (!value.followUpRequired) value.followUpNote = "";
+  if (value.status === ActionStatus.COMPLETED && !value.result) errors.result = "A result is required for a completed action.";
+  return Object.keys(errors).length ? { errors } : { value, errors };
+}
+
+function actionEditMoveAllowed(from: ActionStatus, to: ActionStatus) {
+  if (from === to) return true;
+  if (from === ActionStatus.PLANNED) return to === ActionStatus.IN_PROGRESS || to === ActionStatus.COMPLETED || to === ActionStatus.CANCELLED;
+  if (from === ActionStatus.IN_PROGRESS) return to === ActionStatus.COMPLETED || to === ActionStatus.CANCELLED;
+  return false;
+}
+
+async function eligibleActionAssignee(assigneeId: number | null) {
+  if (assigneeId === null) return true;
+  const assignee = await getPrisma().user.findUnique({ where: { id: assigneeId }, select: { role: true, isActive: true } });
+  return !!assignee && assignee.isActive && ["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role);
+}
+
 async function requesterOwnsTicket(req: AuthenticatedRequest, ticketId: number) {
   const requesterId = await authenticatedRequesterId(req);
   return !!requesterId && !!(await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } }));
@@ -922,11 +992,8 @@ app.post("/api/tickets/:ticketId/actions", requireAuth, requireRole("IT_STAFF", 
   if (!parsed.value) return res.status(400).json({ error: "Validation failed.", errors: parsed.errors });
   try {
     const prisma = getPrisma();
-    if (parsed.value.assigneeId !== null) {
-      const assignee = await prisma.user.findUnique({ where: { id: parsed.value.assigneeId }, select: { role: true, isActive: true } });
-      if (!assignee || !assignee.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role)) {
+    if (!(await eligibleActionAssignee(parsed.value.assigneeId))) {
         return res.status(400).json({ error: "Validation failed.", errors: { assigneeId: "Must identify an active IT Staff or Administrator." } });
-      }
     }
     const result = await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string }>>(Prisma.sql`SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
@@ -953,6 +1020,81 @@ app.post("/api/tickets/:ticketId/actions", requireAuth, requireRole("IT_STAFF", 
     if (result.kind === "resolved") return res.status(409).json({ error: "Reopen the ticket before adding open work.", code: "TICKET_RESOLVED" });
     return res.status(201).json(actionResponse(result.action));
   } catch { return res.status(500).json({ message: "Unable to create action." }); }
+});
+
+// Issue #59 — Action Taken edits are optimistic (versioned), append a
+// revision atomically, and never modify a final action.
+app.patch("/api/tickets/:ticketId/actions/:actionId", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireSameOrigin, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const actionId = Number(req.params.actionId);
+  if (!positiveInteger(ticketId) || !positiveInteger(actionId)) return res.status(400).json({ error: "Validation failed.", errors: { id: "A valid ticket and action id are required." } });
+  const source = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+  if (!positiveInteger(source.version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
+
+  try {
+    const prisma = getPrisma();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string }>>(Prisma.sql`SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+      const ticket = locked[0];
+      if (!ticket) return { kind: "ticketMissing" as const };
+      const stored = await tx.actionTaken.findFirst({ where: { id: actionId, ticketId } });
+      if (!stored) return { kind: "actionMissing" as const };
+      if (ticket.currentStatus === "Closed" || ticket.currentStatus === "Cancelled") return { kind: "closed" as const };
+      if (finalActionStatuses.has(stored.status)) return { kind: "final" as const };
+      if (stored.version !== source.version) return { kind: "stale" as const, currentVersion: stored.version };
+
+      const parsed = actionEditBody(source, stored);
+      if (!parsed.value) return { kind: "invalid" as const, errors: parsed.errors };
+      if (!actionEditMoveAllowed(stored.status, parsed.value.status)) return { kind: "invalid" as const, errors: { status: `Cannot move an action from ${stored.status} to ${parsed.value.status}.` } };
+      if (ticket.currentStatus === "Resolved" && openActionStatuses.has(parsed.value.status)) return { kind: "resolved" as const };
+      // An existing action may legitimately remain assigned to a former staff
+      // member. Only validate assignee eligibility when this PATCH actually
+      // changes (or explicitly re-sends) assigneeId.
+      if (source.assigneeId !== undefined && !(await eligibleActionAssignee(parsed.value.assigneeId))) {
+        return { kind: "invalid" as const, errors: { assigneeId: "Must identify an active IT Staff or Administrator." } };
+      }
+
+      const update = await tx.actionTaken.updateMany({
+        where: { id: actionId, ticketId, version: stored.version },
+        data: { ...parsed.value, version: { increment: 1 } },
+      });
+      if (update.count !== 1) return { kind: "stale" as const, currentVersion: stored.version };
+      await tx.actionTakenRevision.create({ data: { actionTakenId: actionId, revision: stored.version + 1, editedById: req.auth!.user.id, ...parsed.value } });
+      const action = await tx.actionTaken.findUniqueOrThrow({
+        where: { id: actionId },
+        include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      });
+      return { kind: "updated" as const, action };
+    });
+    if (outcome.kind === "ticketMissing") return res.status(404).json({ message: "Ticket was not found" });
+    if (outcome.kind === "actionMissing") return res.status(404).json({ message: "Action was not found" });
+    if (outcome.kind === "closed") return res.status(409).json({ error: "Actions cannot be changed on a closed or cancelled ticket.", code: "TICKET_CLOSED" });
+    if (outcome.kind === "final") return res.status(409).json({ error: "Completed or cancelled actions cannot be edited.", code: "ACTION_FINAL" });
+    if (outcome.kind === "stale") return res.status(409).json({ error: "This action was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
+    if (outcome.kind === "resolved") return res.status(409).json({ error: "Reopen the ticket before adding open work.", code: "TICKET_RESOLVED" });
+    if (outcome.kind === "invalid") return res.status(400).json({ error: "Validation failed.", errors: outcome.errors });
+    return res.status(200).json(actionResponse(outcome.action));
+  } catch { return res.status(500).json({ message: "Unable to update action." }); }
+});
+
+app.get("/api/tickets/:ticketId/actions/:actionId/revisions", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const actionId = Number(req.params.actionId);
+  if (!positiveInteger(ticketId) || !positiveInteger(actionId)) return res.status(400).json({ message: "A valid ticket and action id are required" });
+  try {
+    const prisma = getPrisma();
+    const action = await prisma.actionTaken.findFirst({ where: { id: actionId, ticketId }, select: { id: true } });
+    if (!action) return res.status(404).json({ message: "Action was not found" });
+    const revisions = await prisma.actionTakenRevision.findMany({
+      where: { actionTakenId: actionId }, include: { editedBy: { select: { id: true, name: true } } }, orderBy: { revision: "asc" },
+    });
+    return res.status(200).json({ revisions: revisions.map((revision) => ({
+      revision: revision.revision, editedBy: revision.editedBy, editedAt: revision.editedAt,
+      status: revision.status, assigneeId: revision.assigneeId, actionAt: revision.actionAt,
+      description: revision.description, result: revision.result, followUpRequired: revision.followUpRequired,
+      followUpNote: revision.followUpNote, attachmentNotes: revision.attachmentNotes,
+    })) });
+  } catch { return res.status(500).json({ message: "Unable to load action history." }); }
 });
 
 async function canAccessTicketCommunication(req: AuthenticatedRequest, ticketId: number, allowRequester: boolean) {

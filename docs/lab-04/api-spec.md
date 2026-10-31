@@ -13,7 +13,9 @@ Extends Lab 3. Auth uses the existing session cookie and same-origin checks. Err
 
 Create body: `actionAt?`, `description`, `result?`, `followUpRequired?`, `followUpNote?`, `attachmentNotes?`, `status?`, `assigneeId?`. Performer is ignored if supplied. Patch body contains any editable fields and required integer `version`.
 
-Create returns 201; valid patch returns 200. Invalid fields/missing version return 400; a missing ticket/action or another Requester’s ticket returns 404; stale version, final action, closed ticket or resolved ticket with a new open action returns 409 (`STALE_VERSION`, `ACTION_FINAL`, `TICKET_CLOSED`, `TICKET_RESOLVED`).
+Create returns 201; valid patch returns 200. Patch merges supplied editable fields with the stored row and requires the loaded integer `version`. It permits `PLANNED → IN_PROGRESS | COMPLETED | CANCELLED` and `IN_PROGRESS → COMPLETED | CANCELLED`; an unchanged status is allowed. COMPLETED and CANCELLED are final and cannot be edited. Each successful patch increments `version` and appends a snapshot revision in the same transaction; stale or rejected writes append nothing.
+
+Invalid fields/missing version return 400; a missing ticket/action or another Requester’s ticket returns 404; stale version, final action, closed ticket or resolved ticket with a resulting open action return 409 (`STALE_VERSION`, `ACTION_FINAL`, `TICKET_CLOSED`, `TICKET_RESOLVED`). `GET /api/tickets/:ticketId/actions/:actionId/revisions` is available to IT Staff and Administrators only and returns immutable revisions in ascending revision order.
 
 ## Ticket workflow extensions
 
