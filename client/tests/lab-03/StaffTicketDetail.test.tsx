@@ -40,4 +40,23 @@ describe("Staff Ticket Detail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith(12, { status: "Resolved", version: 1, confirm: true }, "csrf"));
   });
+
+  it("refreshes the ticket after a stale write so a later action uses the current version", async () => {
+    const refreshed = { ...detail, version: 2, itPriority: "High" as const };
+    const getDetail = vi.spyOn(api, "getStaffTicketDetail").mockResolvedValueOnce(detail).mockResolvedValue(refreshed);
+    vi.spyOn(api, "getAssignableStaffUsers").mockResolvedValue([{ id: 9, name: "Nina Staff", email: "nina@test.local" }]);
+    const update = vi.spyOn(api, "updateStaffTicketWorkflow")
+      .mockRejectedValueOnce(new api.ApiRequestError("This ticket was changed by another request; refresh and try again."))
+      .mockResolvedValueOnce({ id: 12, itPriority: "Urgent", status: "In Progress", version: 3, updatedAt: detail.updatedAt });
+
+    render(<StaffTicketDetail ticketId={12} csrfToken="csrf" onBack={vi.fn()} />);
+    await screen.findByRole("heading", { name: "TK-000012" });
+    fireEvent.change(screen.getByLabelText("IT priority"), { target: { value: "High" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save IT priority" }));
+    await waitFor(() => expect(getDetail).toHaveBeenCalledTimes(2));
+
+    fireEvent.change(screen.getByLabelText("IT priority"), { target: { value: "Urgent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save IT priority" }));
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(12, { itPriority: "Urgent", version: 2 }, "csrf"));
+  });
 });

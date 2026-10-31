@@ -46,7 +46,7 @@ export default function StaffTicketDetail({ ticketId, csrfToken, onBack }: { tic
   }
   useEffect(() => { void load(); }, [ticketId]);
   const report = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(""), 4500); };
-  async function perform(action: () => Promise<unknown>, success: string) { setBusy(true); try { await action(); report(success); await load(); } catch (error) { report(error instanceof Error ? error.message : "Unable to save changes."); } finally { setBusy(false); } }
+  async function perform(action: () => Promise<unknown>, success: string) { setBusy(true); try { await action(); report(success); await load(); } catch (error) { report(error instanceof Error ? error.message : "Unable to save changes."); await load(); } finally { setBusy(false); } }
   async function saveOwner() { if (!ticket) return; await perform(() => updateStaffTicketOwner(ticketId, ownerId ? Number(ownerId) : null, ticket.version, csrfToken), "Owner updated."); }
   async function savePriority() { if (!priority || !ticket) return; await perform(() => updateStaffTicketWorkflow(ticketId, { itPriority: priority as StaffTicket["itPriority"], version: ticket.version }, csrfToken), "IT priority updated."); }
   async function requestStatus() { if (!nextStatus) return; if (confirmationRequired.has(nextStatus)) { setConfirmStatus(nextStatus); return; } await applyStatus(nextStatus); }
