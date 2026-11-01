@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { briefDescription, countsByKey, recentWindowStart } from "../../src/dashboard.js";
+import { hashPassword } from "../../src/auth.js";
+import { getPrisma } from "../../src/prisma.js";
 
 describe("Lab 4 dashboard helpers and authorization", () => {
   it("cuts action descriptions by characters and preserves emoji", () => {
@@ -21,5 +23,29 @@ describe("Lab 4 dashboard helpers and authorization", () => {
   it("requires authentication and the staff role", async () => {
     await request(app).get("/api/dashboard/staff").expect(401);
     await request(app).get("/api/dashboard/requester").expect(401);
+  });
+
+  it("loads the staff dashboard successfully for an authenticated IT Staff user", async () => {
+    const prisma = getPrisma();
+    const email = `dashboard-success-${Date.now()}@example.test`;
+    const password = "DashboardSuccess123!";
+    const user = await prisma.user.create({
+      data: { name: "Dashboard Success Staff", email, role: "IT_STAFF", passwordHash: await hashPassword(password), mustChangePassword: false },
+    });
+    try {
+      const agent = request.agent(app);
+      await agent.post("/api/auth/login").send({ email, password }).expect(200);
+      const response = await agent.get("/api/dashboard/staff").expect(200);
+      expect(response.body).toEqual(expect.objectContaining({
+        unassigned: expect.any(Number),
+        assignedToMe: 0,
+        ticketsWithMyOpenActions: 0,
+        myRecentActions: [],
+        recentlyUpdated: expect.any(Array),
+      }));
+    } finally {
+      await prisma.session.deleteMany({ where: { userId: user.id } });
+      await prisma.user.delete({ where: { id: user.id } });
+    }
   });
 });

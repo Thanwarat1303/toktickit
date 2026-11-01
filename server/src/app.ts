@@ -660,7 +660,7 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF", "ADMINISTRATO
       ...(ownerId === 0 ? { assignedStaffId: null } : ownerId ? { assignedStaffId: ownerId } : {}),
       ...(openText === "1" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] } } : {}),
       ...(recentText === "1" ? recentUpdatedFilter() : {}),
-      ...(actionAssigneeIdText === "me" ? { actionsTaken: { some: { assigneeId: req.auth!.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } } : {}),
+      ...(actionAssigneeIdText === "me" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] }, actionsTaken: { some: { assigneeId: req.auth!.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } } : {}),
     };
     const direction: Prisma.SortOrder = sortDir as Prisma.SortOrder;
     const orderBy: Prisma.TicketOrderByWithRelationInput =

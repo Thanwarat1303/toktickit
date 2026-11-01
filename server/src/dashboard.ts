@@ -1,5 +1,5 @@
 import type { Express, Response } from "express";
-import { ActionStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { requireAuth, requirePasswordUpToDate, requireRole, type AuthenticatedRequest } from "./auth.js";
 
@@ -81,7 +81,7 @@ export function registerDashboardRoutes(app: Express): void {
         prisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true } }),
         prisma.ticket.groupBy({ by: ["itPriority"], where: open, _count: { _all: true } }),
         prisma.ticket.findMany({ where: recent, orderBy: recentOrder, take: LIMIT, select: ticketBrief }),
-        prisma.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`SELECT count(DISTINCT a."ticketId") AS n FROM "ActionTaken" a JOIN "Ticket" t ON t.id = a."ticketId" WHERE a."assigneeId" = ${me} AND a."status" IN (${Prisma.join([ActionStatus.PLANNED, ActionStatus.IN_PROGRESS])}) AND t."currentStatus" IN (${Prisma.join([...OPEN_TICKET_STATUSES])})`),
+        prisma.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`SELECT count(DISTINCT a."ticketId") AS n FROM "ActionTaken" a JOIN "Ticket" t ON t.id = a."ticketId" WHERE a."assigneeId" = ${me} AND a."status" IN ('PLANNED'::"ActionStatus", 'IN_PROGRESS'::"ActionStatus") AND t."currentStatus" IN (${Prisma.join([...OPEN_TICKET_STATUSES])})`),
         prisma.actionTaken.findMany({ where: { performedById: me }, orderBy: [{ actionAt: "desc" }, { id: "desc" }], take: LIMIT, select: { id: true, ticketId: true, status: true, actionAt: true, description: true, ticket: { select: { ticketNumber: true } } } }),
       ]);
       const body: Record<string, unknown> = {
