@@ -23,6 +23,7 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
   const [users, setUsers] = useState<AssignableStaffUser[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [conflict, setConflict] = useState("");
   const [form, setForm] = useState<FormValue | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -39,9 +40,9 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
   const createStatuses: ActionStatus[] = ticketStatus === "Resolved" ? ["COMPLETED"] : ["PLANNED", "IN_PROGRESS", "COMPLETED"];
   const assignable = useMemo(() => users, [users]);
 
-  function beginCreate() { setEditing(null); setErrors({}); setMessage(""); setForm(emptyForm()); }
+  function beginCreate() { setEditing(null); setErrors({}); setMessage(""); setConflict(""); setForm(emptyForm()); }
   function beginEdit(action: ActionTaken) {
-    setEditing(action.id); setErrors({}); setMessage("");
+    setEditing(action.id); setErrors({}); setMessage(""); setConflict("");
     setForm({ description: action.description, status: action.status, assigneeId: action.assignee?.id ?? null, actionAt: new Date(action.actionAt).toISOString().slice(0, 16), result: action.result, followUpRequired: action.followUpRequired, followUpNote: action.followUpNote, attachmentNotes: action.attachmentNotes });
   }
   function setField<K extends keyof FormValue>(field: K, value: FormValue[K]) { setForm((current) => current ? { ...current, [field]: value } : current); setErrors((current) => ({ ...current, [field]: "" })); }
@@ -53,14 +54,15 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
     if (form.followUpRequired && !form.followUpNote.trim()) nextErrors.followUpNote = "A follow-up note is required when follow-up is required.";
     if (form.status === "COMPLETED" && !form.result.trim()) nextErrors.result = "A result is required for a completed action.";
     if (Object.values(nextErrors).some(Boolean)) { setErrors(nextErrors); return; }
-    setSaving(true); setMessage("");
+    setSaving(true); setMessage(""); setConflict("");
     try {
       const input: ActionInput = { ...form, description: form.description.trim(), result: form.result.trim(), followUpNote: form.followUpNote.trim(), attachmentNotes: form.attachmentNotes.trim(), actionAt: actionDate(form.actionAt) };
       if (editing === null) await createAction(ticketId, input, csrfToken); else await updateAction(ticketId, editing, actions.find((a) => a.id === editing)?.version ?? 0, input, csrfToken);
       setForm(null); setEditing(null); await load(); onChanged?.();
     } catch (error) {
       const apiError = error instanceof ApiRequestError ? error : null;
-      setMessage(apiError?.message ?? "Unable to save action."); setErrors(apiError?.fieldErrors ?? {});
+      if (apiError?.status === 409) setConflict(apiError.message); else setMessage(apiError?.message ?? "Unable to save action.");
+      setErrors(apiError?.fieldErrors ?? {});
     } finally { setSaving(false); }
   }
   async function showHistory(actionId: number) { setHistory({ id: actionId, rows: [] }); try { setHistory({ id: actionId, rows: await fetchActionRevisions(ticketId, actionId) }); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load action history."); setHistory(null); } }
@@ -70,6 +72,7 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
   return <section className="staff-detail__panel actions-taken" aria-labelledby="actions-taken-title">
     <div className="d-flex justify-content-between align-items-center gap-2"><h2 id="actions-taken-title">Actions Taken</h2>{!readOnly && <button className="btn btn-success btn-sm" disabled={closed} onClick={beginCreate}>Add action</button>}</div>
     {closed && !readOnly && <p className="text-secondary small">Actions cannot be added to a closed or cancelled ticket.</p>}
+    {conflict && <div role="alert" className="alert alert-warning d-flex justify-content-between align-items-center gap-2"><span>{conflict}</span><button className="btn btn-sm btn-outline-success" onClick={() => { setConflict(""); void load(); }}>Reload</button></div>}
     {message && <p role="alert" className="form-error">{message}</p>}
     {actions.length === 0 ? <p className="text-secondary">No actions recorded yet.</p> : <div className="actions-taken__list">{actions.map((action) => <article className="actions-taken__item" key={action.id}>
       <div className="d-flex flex-wrap justify-content-between gap-2"><strong><span className="status-badge">{statusLabel[action.status]}</span> · {new Date(action.actionAt).toLocaleString()}</strong><span className="text-secondary">By {action.performedBy.name} · {action.assignee?.name ?? "Unassigned"}</span></div>
@@ -79,9 +82,9 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
     </article>)}</div>}
     {form && <form className="actions-taken__form mt-4" onSubmit={(event) => void submit(event)} noValidate><h3>{editing === null ? "Add action" : "Edit action"}</h3>
       <label>Description<textarea value={form.description} aria-invalid={Boolean(errors.description)} aria-describedby={errors.description ? "action-description-error" : undefined} onChange={(e) => setField("description", e.target.value)} />{errors.description && <span id="action-description-error" className="field-error">{errors.description}</span>}</label>
-      <label>Status<select value={form.status} onChange={(e) => setField("status", e.target.value as ActionStatus)}>{(editing === null ? createStatuses : editStatuses(actions.find((a) => a.id === editing)!)).map((status) => <option key={status} value={status}>{statusLabel[status]}</option>)}</select></label>
-      <label>Assignee<select value={form.assigneeId ?? ""} onChange={(e) => setField("assigneeId", e.target.value ? Number(e.target.value) : null)}><option value="">Unassigned</option>{assignable.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
-      <label>Action time<input type="datetime-local" value={form.actionAt} onChange={(e) => setField("actionAt", e.target.value)} /></label>
+      <label>Status<select value={form.status} onChange={(e) => setField("status", e.target.value as ActionStatus)}>{(editing === null ? createStatuses : editStatuses(actions.find((a) => a.id === editing)!)).map((status) => <option key={status} value={status}>{statusLabel[status]}</option>)}</select>{ticketStatus === "Resolved" && editing === null && <span className="form-help">Only Completed actions can be added. Reopen the ticket to add open work.</span>}</label>
+      <label>Assignee<select aria-invalid={Boolean(errors.assigneeId)} aria-describedby={errors.assigneeId ? "action-assignee-error" : undefined} value={form.assigneeId ?? ""} onChange={(e) => setField("assigneeId", e.target.value ? Number(e.target.value) : null)}><option value="">Unassigned</option>{assignable.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select>{errors.assigneeId && <span id="action-assignee-error" className="field-error">{errors.assigneeId}</span>}</label>
+      <label>Action time<input type="datetime-local" aria-invalid={Boolean(errors.actionAt)} aria-describedby={errors.actionAt ? "action-time-error" : undefined} value={form.actionAt} onChange={(e) => setField("actionAt", e.target.value)} />{errors.actionAt && <span id="action-time-error" className="field-error">{errors.actionAt}</span>}</label>
       <label>Result<textarea value={form.result} aria-invalid={Boolean(errors.result)} aria-describedby={errors.result ? "action-result-error" : undefined} onChange={(e) => setField("result", e.target.value)} />{errors.result && <span id="action-result-error" className="field-error">{errors.result}</span>}</label>
       <label className="d-flex gap-2 align-items-center"><input type="checkbox" checked={form.followUpRequired} onChange={(e) => setField("followUpRequired", e.target.checked)} /> Follow-up required</label>
       {form.followUpRequired && <label>Follow-up note<textarea value={form.followUpNote} aria-invalid={Boolean(errors.followUpNote)} aria-describedby={errors.followUpNote ? "action-follow-up-error" : undefined} onChange={(e) => setField("followUpNote", e.target.value)} />{errors.followUpNote && <span id="action-follow-up-error" className="field-error">{errors.followUpNote}</span>}</label>}
