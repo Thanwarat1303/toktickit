@@ -56,7 +56,7 @@ Excluded: SLA automation, notifications, inventory/cost accounting, approval wor
 - **BR-09** Actions are ordered by `actionAt`, then `id`, ascending.
 - **BR-10** CLOSED/CANCELLED tickets accept no actions. A RESOLVED ticket accepts no new PLANNED/IN_PROGRESS action; it must be reopened first. A completed action may be recorded only if the status workflow permits it.
 - **BR-11** The Lab 3 ticket matrix remains, with IT Staff and Administrator authorized for ticket operations.
-- **BR-12** RESOLVED requires an owner, a COMPLETED action and no PLANNED/IN_PROGRESS action. Removing the owner from a RESOLVED ticket is rejected; the ticket must be reopened first.
+- **BR-12** RESOLVED requires an owner, a COMPLETED action and no PLANNED/IN_PROGRESS action. A RESOLVED ticket and its terminal CLOSED successor retain their owner; removing the owner is rejected until the ticket is reopened.
 - **BR-13** Each action create/edit and ticket status write locks the Ticket first in one transaction. The gate check and status update occur while locked.
 - **BR-14** Confirmation remains required for RESOLVED, CLOSED, REOPENED and CANCELLED; error order is 401, 403, 400, 404, 409.
 - **BR-15** `Ticket.version` and `ActionTaken.version` start at 1. Ticket claim/assign/priority/status/mark-resolved and action edit require the loaded version; stale writes return `409 STALE_VERSION`. The former Lab 3 `PATCH /api/staff/tickets/:id/workflow` route is retained only for `itPriority`; it rejects `status` and `confirm`. Status changes have exactly one write route: `PATCH /api/staff/tickets/:id/status`.

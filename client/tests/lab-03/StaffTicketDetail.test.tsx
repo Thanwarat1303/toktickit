@@ -42,6 +42,18 @@ describe("Staff Ticket Detail", () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith(12, { currentStatus: "Resolved", version: 1, confirm: true }, "csrf"));
   });
 
+  it("does not offer Unassigned while a resolved or closed ticket must retain its owner", async () => {
+    const owner = { id: 9, name: "Nina Staff", email: "nina@test.local" };
+    vi.spyOn(api, "getAssignableStaffUsers").mockResolvedValue([owner]);
+    vi.spyOn(api, "getStaffTicketDetail").mockResolvedValue({ ...detail, status: "Resolved", owner, allowedTransitions: ["Closed", "Reopened"], resolutionGate: { ok: true, unmet: [] } });
+    render(<StaffTicketDetail ticketId={12} csrfToken="csrf" onBack={vi.fn()} />);
+    await screen.findByRole("heading", { name: "TK-000012" });
+    const ownerSelect = screen.getByLabelText("Ticket owner");
+    expect(ownerSelect).toHaveValue("9");
+    expect(ownerSelect).not.toHaveTextContent("Unassigned");
+    expect(screen.getByText(/Reopen this ticket before removing its owner/i)).toBeInTheDocument();
+  });
+
   it("refreshes the ticket after a stale write so a later action uses the current version", async () => {
     const refreshed = { ...detail, version: 2, itPriority: "High" as const };
     const getDetail = vi.spyOn(api, "getStaffTicketDetail").mockResolvedValueOnce(detail).mockResolvedValue(refreshed);

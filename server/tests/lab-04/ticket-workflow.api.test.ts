@@ -134,6 +134,18 @@ describe("Lab 4 ticket status workflow", () => {
     expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).currentStatus).toBe("New");
   });
 
+  it("validates an owner before returning missing-ticket or stale-version conflicts", async () => {
+    const ticket = await createTicket({ ownerId: staffId });
+    await prisma.ticket.update({ where: { id: ticket.id }, data: { version: { increment: 1 } } });
+    const stale = await staff.patch(`/api/staff/tickets/${ticket.id}/owner`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
+      .send({ ownerId: requesterUserId, version: ticket.version }).expect(400);
+    expect(stale.body.message).toMatch(/ownerId must identify an active IT Staff or Administrator user/i);
+
+    const missing = await staff.patch(`/api/staff/tickets/${ticket.id + 10_000_000}/owner`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
+      .send({ ownerId: requesterUserId, version: 1 }).expect(400);
+    expect(missing.body.message).toMatch(/ownerId must identify an active IT Staff or Administrator user/i);
+  });
+
   it("separates priority and status writes and returns a clear illegal-transition conflict", async () => {
     const ticket = await createTicket({ status: "New" });
     await staff.patch(`/api/staff/tickets/${ticket.id}/workflow`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
@@ -166,7 +178,7 @@ describe("Lab 4 ticket status workflow", () => {
   });
 
   it("serializes an Action Taken create and resolution without leaving resolved tickets with open work", async () => {
-    for (let round = 0; round < 5; round += 1) {
+    for (let round = 0; round < 20; round += 1) {
       const ticket = await createTicket({ ownerId: staffId });
       await addAction(ticket.id, ActionStatus.COMPLETED);
       const [create, resolve] = await Promise.all([
@@ -189,7 +201,7 @@ describe("Lab 4 ticket status workflow", () => {
     }
   });
 
-  it("requires reopening before a resolved ticket can be unassigned", async () => {
+  it("requires reopening before a resolved or closed ticket can be unassigned", async () => {
     const ticket = await createTicket({ ownerId: staffId });
     await addAction(ticket.id, ActionStatus.COMPLETED);
     const resolved = await staff.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
@@ -198,5 +210,12 @@ describe("Lab 4 ticket status workflow", () => {
       .send({ ownerId: null, version: resolved.body.ticket.version }).expect(409);
     expect(response.body).toMatchObject({ code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
     expect(await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id }, select: { currentStatus: true, assignedStaffId: true } })).toMatchObject({ currentStatus: "Resolved", assignedStaffId: staffId });
+
+    const closed = await staff.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
+      .send({ currentStatus: "Closed", confirm: true, version: resolved.body.ticket.version }).expect(200);
+    const closedResponse = await staff.patch(`/api/staff/tickets/${ticket.id}/owner`).set("Origin", origin).set("X-CSRF-Token", staffCsrf)
+      .send({ ownerId: null, version: closed.body.ticket.version }).expect(409);
+    expect(closedResponse.body).toMatchObject({ code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
+    expect(await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id }, select: { currentStatus: true, assignedStaffId: true } })).toMatchObject({ currentStatus: "Closed", assignedStaffId: staffId });
   });
 });

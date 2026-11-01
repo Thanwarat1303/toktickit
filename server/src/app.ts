@@ -783,6 +783,15 @@ app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, 
 
   try {
     const prisma = getPrisma();
+    // BR-14 requires body validation (400) before ticket lookup/staleness.
+    // Keep this early check, then repeat it under the ticket lock before the
+    // write so a concurrent account change cannot make an invalid owner stick.
+    if (ownerId !== null) {
+      const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
+      if (!owner || !owner.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(owner.role)) {
+        return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
+      }
+    }
     const outcome = await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string; version: number }>>(
         Prisma.sql`SELECT "id", "currentStatus", "version" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`,
@@ -790,9 +799,9 @@ app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, 
       const ticket = locked[0];
       if (!ticket) return { kind: "missing" as const };
       if (ticket.version !== version) return { kind: "stale" as const, currentVersion: ticket.version };
-      // A resolved ticket must retain an owner. Reopen it before unassigning so
-      // the persisted ticket cannot contradict the resolution-gate invariant.
-      if (ownerId === null && ticket.currentStatus === "Resolved") return { kind: "resolvedOwner" as const };
+      // Resolved tickets and their terminal Closed successors retain an owner.
+      // Reopen before unassigning so no completed workflow loses accountability.
+      if (ownerId === null && ["Resolved", "Closed"].includes(ticket.currentStatus)) return { kind: "ownerRequired" as const };
 
       if (ownerId !== null) {
         const owner = await tx.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
@@ -809,7 +818,7 @@ app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, 
     if (outcome.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
     if (outcome.kind === "stale") return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
     if (outcome.kind === "invalidOwner") return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
-    if (outcome.kind === "resolvedOwner") return res.status(409).json({ error: "Reopen the ticket before removing its owner.", code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
+    if (outcome.kind === "ownerRequired") return res.status(409).json({ error: "Reopen the ticket before removing its owner.", code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
     const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
     return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
   } catch {
@@ -1431,9 +1440,10 @@ app.post("/api/tickets/:ticketId/attachments", requireSameOrigin, requireAuth, r
   }
 });
 
-app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER", "IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER", "IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   // Requesters remain scoped to their own tickets. IT Staff, who work from
   // the shared queue, may download an active attachment from any ticket.
+  // Administrators have the same shared-ticket read access in Lab 4.
   const isRequester = req.auth!.user.role === "REQUESTER";
   const requesterId = isRequester ? await authenticatedRequesterId(req) : undefined;
   const attachmentId = Number(req.params.attachmentId);
