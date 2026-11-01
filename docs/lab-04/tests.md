@@ -77,4 +77,17 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   later data.
 - `server/tests/lab-03/staff-ticket-detail.api.test.ts` supplies the current version on every
   successful Lab 3 staff write and verifies missing/stale workflow requests leave ticket fields
-  unchanged. The final route split and resolution gate remain planned for F6.
+  unchanged.
+
+## F6 evidence: Resolution gate and ticket status workflow
+
+- `PATCH /api/staff/tickets/:id/status` is the dedicated status endpoint. It requires the
+  loaded ticket version and any required confirmation, locks the Ticket while it checks the
+  transition matrix and resolution gate, then makes one conditional versioned update.
+- `PATCH /api/staff/tickets/:id/workflow` now accepts IT priority only. It rejects `status` and
+  `confirm`, preventing the legacy route from bypassing the resolution gate.
+- Staff ticket detail now includes `allowedTransitions` and `resolutionGate`. The client reads
+  those transitions from the server and sends status changes to the dedicated endpoint.
+- `server/tests/lab-04/ticket-workflow.api.test.ts` verifies the owner/completed-action gate,
+  route separation, and Administrator claim/detail access. Existing Lab 3 staff-detail and
+  comments/notes regression tests are re-run with the changed status route.

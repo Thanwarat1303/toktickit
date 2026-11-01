@@ -8,18 +8,13 @@ import {
   postInternalNote,
   postTicketComment,
   updateStaffTicketOwner,
+  updateStaffTicketStatus,
   updateStaffTicketWorkflow,
   type AssignableStaffUser,
   type StaffTicketDetail as StaffTicket,
   type WorkflowStatus,
 } from "./api.js";
 
-const transitions: Record<WorkflowStatus, WorkflowStatus[]> = {
-  New: ["Open", "Cancelled"], Open: ["In Progress", "Waiting for Requester", "Cancelled"],
-  "In Progress": ["Waiting for Requester", "Resolved", "Cancelled"],
-  "Waiting for Requester": ["In Progress", "Resolved", "Cancelled"], Resolved: ["Closed", "Reopened"],
-  Closed: ["Reopened"], Reopened: ["In Progress", "Cancelled"], Cancelled: ["Reopened"],
-};
 const confirmationRequired = new Set<WorkflowStatus>(["Resolved", "Closed", "Reopened", "Cancelled"]);
 
 export default function StaffTicketDetail({ ticketId, csrfToken, onBack }: { ticketId: number; csrfToken: string; onBack: () => void }) {
@@ -50,7 +45,7 @@ export default function StaffTicketDetail({ ticketId, csrfToken, onBack }: { tic
   async function saveOwner() { if (!ticket) return; await perform(() => updateStaffTicketOwner(ticketId, ownerId ? Number(ownerId) : null, ticket.version, csrfToken), "Owner updated."); }
   async function savePriority() { if (!priority || !ticket) return; await perform(() => updateStaffTicketWorkflow(ticketId, { itPriority: priority as StaffTicket["itPriority"], version: ticket.version }, csrfToken), "IT priority updated."); }
   async function requestStatus() { if (!nextStatus) return; if (confirmationRequired.has(nextStatus)) { setConfirmStatus(nextStatus); return; } await applyStatus(nextStatus); }
-  async function applyStatus(status: WorkflowStatus) { if (!ticket) return; setConfirmStatus(null); await perform(() => updateStaffTicketWorkflow(ticketId, { status, version: ticket.version, ...(confirmationRequired.has(status) ? { confirm: true as const } : {}) }, csrfToken), "Ticket status updated."); setNextStatus(""); }
+  async function applyStatus(status: WorkflowStatus) { if (!ticket) return; setConfirmStatus(null); await perform(() => updateStaffTicketStatus(ticketId, { currentStatus: status, version: ticket.version, ...(confirmationRequired.has(status) ? { confirm: true as const } : {}) }, csrfToken), "Ticket status updated."); setNextStatus(""); }
   async function submitComment() { const content = comment.trim(); if (!content) return report("Write a public comment before posting."); await perform(async () => { await postTicketComment(ticketId, content, csrfToken); setComment(""); }, "Public comment posted."); }
   async function submitNote() { const content = note.trim(); if (!content) return report("Write an internal note before posting."); await perform(async () => { await postInternalNote(ticketId, content, csrfToken); setNote(""); }, "Internal note posted."); }
 
@@ -58,7 +53,7 @@ export default function StaffTicketDetail({ ticketId, csrfToken, onBack }: { tic
   if (state === "not-found") return <section className="selected-card"><p role="alert" className="form-error">This ticket was not found.</p><button className="btn btn-outline-success" onClick={onBack}>Back to queue</button></section>;
   if (state === "error" || !ticket) return <section className="selected-card"><p role="alert" className="form-error">Unable to load this ticket. Please try again.</p><button className="btn btn-outline-success" onClick={() => void load()}>Try again</button></section>;
 
-  const allowed = transitions[ticket.status as WorkflowStatus] ?? [];
+  const allowed = ticket.allowedTransitions;
   return <section className="ticket-list-card staff-detail" aria-labelledby="staff-ticket-detail-title">
     <button className="btn btn-sm btn-outline-success" onClick={onBack}>← Back to queue</button>
     <div className="staff-detail__heading"><div><p className="eyebrow">IT STAFF · TICKET DETAIL</p><h1 id="staff-ticket-detail-title">{ticket.ticketNumber}</h1><p className="text-secondary">{ticket.summary}</p></div><span className="status-badge">{ticket.status}</span></div>

@@ -8,6 +8,7 @@ const detail: api.StaffTicketDetail = {
   priority: "High", itPriority: "Medium", status: "In Progress", category: { id: 1, name: "Network" },
   relatedSystem: { id: 2, name: "VPN" }, requester: { id: 4, name: "Aom Student", email: "aom@test.local" },
   owner: null, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z",
+  allowedTransitions: ["Waiting for Requester", "Resolved", "Cancelled"], resolutionGate: { ok: false, unmet: ["NO_COMPLETED_ACTION"] },
   attachments: [], publicComments: [], internalNotes: [],
 };
 
@@ -30,7 +31,7 @@ describe("Staff Ticket Detail", () => {
 
   it("requires an explicit confirmation before a confirmation-required transition", async () => {
     mockDetail();
-    const update = vi.spyOn(api, "updateStaffTicketWorkflow").mockResolvedValue({ id: 12, itPriority: "Medium", status: "Resolved", version: 2, updatedAt: detail.updatedAt });
+    const update = vi.spyOn(api, "updateStaffTicketStatus").mockResolvedValue({ ticket: { id: 12, status: "Resolved", version: 2, allowedTransitions: ["Closed", "Reopened"], resolutionGate: { ok: false, unmet: ["NO_COMPLETED_ACTION"] } } });
     render(<StaffTicketDetail ticketId={12} csrfToken="csrf" onBack={vi.fn()} />);
     await screen.findByRole("heading", { name: "TK-000012" });
     fireEvent.change(screen.getByLabelText("Change status"), { target: { value: "Resolved" } });
@@ -38,7 +39,7 @@ describe("Staff Ticket Detail", () => {
     expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
     expect(update).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(update).toHaveBeenCalledWith(12, { status: "Resolved", version: 1, confirm: true }, "csrf"));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(12, { currentStatus: "Resolved", version: 1, confirm: true }, "csrf"));
   });
 
   it("refreshes the ticket after a stale write so a later action uses the current version", async () => {
