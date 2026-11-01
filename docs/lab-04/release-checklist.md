@@ -65,3 +65,13 @@ Use the names and checklist in `ui-spec.md` section 9. Tablet screenshots must b
 - [ ] Server and client builds pass with `tsc` enabled.
 - [ ] Database migration status is up to date.
 - [ ] The final PR has an independent review and approval before merge.
+
+## 7. Verification log
+
+The current local verification has been recorded without inflating the release status:
+
+- Client: `npm test -- --run` — 37/37 passed.
+- Client: `npm run build` — passed (`tsc` and Vite build).
+- Server: `npm run build` — passed (`tsc`).
+- Server: `npm test` — not yet complete because the local PostgreSQL service at `localhost:15433` was unavailable; database-backed tests reported connection failures. Start the project database, reseed it from a clean state, then rerun the server suite before checking any release item above.
+- Playwright and screenshot capture remain pending until the server/database are available.
