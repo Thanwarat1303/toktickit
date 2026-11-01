@@ -14,7 +14,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Planned |
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
-| API-25..28 | dashboards | values and drill-down sets equal raw database queries, Bangkok seven-day boundary and zero-filled metrics | Pass (F5) |
+| API-25..28 | dashboards | values and drill-down sets equal raw database queries, Bangkok seven-day boundary and zero-filled metrics | Pass (#62/#63) |
 | MIG-01..03 | migration and seed | additive migration, version defaults, revision constraints and idempotent seed | Pass (F2) |
 | UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Planned |
 | UI-07..10 | workflow | legal buttons, gate reasons, confirmation, version sent | Planned |
@@ -96,3 +96,13 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   the rule that a resolved or closed ticket must be reopened before its owner can be removed,
   and BR-14's invalid-owner-before-stale/missing ordering. Existing
   Lab 3 staff-detail and comments/notes regression tests are re-run with the changed status route.
+
+## #63 evidence: Requester dashboard API
+
+- `server/tests/lab-04/requester-dashboard.api.test.ts` verifies the authenticated
+  Requester's four dashboard metrics are scoped to that Requester's own tickets.
+- The suite covers all five open statuses, the Waiting for Requester count,
+  recently updated and recently resolved lists, stable newest-first ordering,
+  five-row limits, and the exact Bangkok seven-day boundary.
+- A ticket belonging to another Requester is excluded, and a deactivated
+  Requester profile receives `403` rather than an empty dashboard.
