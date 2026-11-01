@@ -141,6 +141,8 @@ export interface StaffTicketQueueQuery {
 
 export interface StaffTicketDetail extends Omit<StaffTicketSummary, "requesterName" | "owner"> {
   version: number;
+  allowedTransitions: WorkflowStatus[];
+  resolutionGate: { ok: boolean; unmet: string[] };
   requester: Requester;
   owner: { id: number; name: string; email: string } | null;
   attachments: AttachmentSummary[];
@@ -434,8 +436,12 @@ export function updateStaffTicketOwner(ticketId: number, ownerId: number | null,
   return staffMutation<{ id: number; owner: { id: number; name: string } | null; version: number; updatedAt: string }>(`/api/staff/tickets/${ticketId}/owner`, "PATCH", csrfToken, { ownerId, version });
 }
 
-export function updateStaffTicketWorkflow(ticketId: number, input: { itPriority?: StaffTicketSummary["itPriority"]; status?: WorkflowStatus; confirm?: true; version: number }, csrfToken: string) {
+export function updateStaffTicketWorkflow(ticketId: number, input: { itPriority: StaffTicketSummary["itPriority"]; version: number }, csrfToken: string) {
   return staffMutation<{ id: number; itPriority: StaffTicketSummary["itPriority"]; status: WorkflowStatus; version: number; updatedAt: string }>(`/api/staff/tickets/${ticketId}/workflow`, "PATCH", csrfToken, input);
+}
+
+export function updateStaffTicketStatus(ticketId: number, input: { currentStatus: WorkflowStatus; confirm?: true; version: number }, csrfToken: string) {
+  return staffMutation<{ ticket: { id: number; status: WorkflowStatus; version: number; allowedTransitions: WorkflowStatus[]; resolutionGate: { ok: boolean; unmet: string[] } } }>(`/api/staff/tickets/${ticketId}/status`, "PATCH", csrfToken, input);
 }
 
 export async function getAssignableStaffUsers(): Promise<AssignableStaffUser[]> {

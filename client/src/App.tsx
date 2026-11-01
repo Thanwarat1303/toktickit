@@ -15,10 +15,11 @@ export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [screen, setScreen] = useState<Screen>("loading");
   const [view, setView] = useState<"create" | "tickets">("create");
+  const [adminView, setAdminView] = useState<"queue" | "users">("queue");
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [staffTicketId, setStaffTicketId] = useState<number | null>(null);
   useEffect(() => { getCurrentUser().then(openSession).catch(() => setScreen("login")); }, []);
-  function openSession(next: AuthSession) { setSession(next); setView("create"); setSelectedTicketId(null); setStaffTicketId(null); setScreen(next.user.mustChangePassword ? "change-password" : "home"); }
+  function openSession(next: AuthSession) { setSession(next); setView("create"); setAdminView("queue"); setSelectedTicketId(null); setStaffTicketId(null); setScreen(next.user.mustChangePassword ? "change-password" : "home"); }
   async function signOut() { if (!session) return; try { await logout(session.csrfToken); } finally { setSession(null); setScreen("login"); } }
   return <div className="app-shell min-vh-100">
     <header className="topbar"><div className="container d-flex align-items-center justify-content-between gap-3"><a className="brand" href="#" aria-label="TokTickIT home"><span className="brand__mark">T</span><span>TokTickIT</span></a>{session && <div className="d-flex align-items-center gap-3"><div className="requester-chip"><span className="requester-chip__avatar" aria-hidden="true">{session.user.name.charAt(0)}</span><span><small>Signed in as</small><strong>{session.user.name}</strong></span></div><button className="btn btn-sm btn-light" onClick={signOut}>Log out</button></div>}</div></header>
@@ -26,11 +27,15 @@ export default function App() {
       {screen === "loading" && <p className="text-center text-secondary">Restoring your session…</p>}
       {screen === "login" && <Login onSuccess={openSession} />}
       {screen === "change-password" && session && <ChangePassword session={session} onSuccess={openSession} />}
-      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} csrfToken={session.csrfToken} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : session.user.role === "IT_STAFF" ? (staffTicketId ? <StaffTicketDetail ticketId={staffTicketId} csrfToken={session.csrfToken} onBack={() => setStaffTicketId(null)} /> : <StaffTicketQueue onOpenTicket={setStaffTicketId} />) : <UserManagement csrfToken={session.csrfToken} />)}
+      {screen === "home" && session && (session.user.role === "REQUESTER" ? <RequesterWorkspace requester={session.user} csrfToken={session.csrfToken} view={view} selectedTicketId={selectedTicketId} onView={setView} onOpen={setSelectedTicketId} onBack={() => setSelectedTicketId(null)} /> : session.user.role === "IT_STAFF" ? (staffTicketId ? <StaffTicketDetail ticketId={staffTicketId} csrfToken={session.csrfToken} onBack={() => setStaffTicketId(null)} /> : <StaffTicketQueue onOpenTicket={setStaffTicketId} />) : <AdministratorWorkspace csrfToken={session.csrfToken} view={adminView} selectedTicketId={staffTicketId} onView={setAdminView} onOpen={setStaffTicketId} onBack={() => setStaffTicketId(null)} />)}
     </main>
   </div>;
 }
 
 function RequesterWorkspace({ requester, csrfToken, view, selectedTicketId, onView, onOpen, onBack }: { requester: AuthUser; csrfToken: string; view: "create" | "tickets"; selectedTicketId: number | null; onView: (view: "create" | "tickets") => void; onOpen: (id: number) => void; onBack: () => void }) {
   return <><section className="selected-card"><div><p className="eyebrow mb-2">Requester workspace</p><h1 className="h2 mb-1">Welcome, {requester.name}</h1><p className="text-secondary mb-0">Create and follow your own support requests.</p></div></section><nav className="app-nav" aria-label="Ticket views"><button className={view === "create" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => { onView("create"); onBack(); }}>New Ticket</button><button className={view === "tickets" ? "app-nav__tab active" : "app-nav__tab"} onClick={() => onView("tickets")}>My Tickets</button></nav>{view === "create" ? <CreateTicketForm requester={requester} csrfToken={csrfToken} /> : selectedTicketId ? <TicketDetail requester={requester} csrfToken={csrfToken} ticketId={selectedTicketId} onBack={onBack} /> : <MyTickets requester={requester} onOpenTicket={onOpen} />}</>;
+}
+
+function AdministratorWorkspace({ csrfToken, view, selectedTicketId, onView, onOpen, onBack }: { csrfToken: string; view: "queue" | "users"; selectedTicketId: number | null; onView: (view: "queue" | "users") => void; onOpen: (id: number) => void; onBack: () => void }) {
+  return <><section className="selected-card"><div><p className="eyebrow mb-2">Administrator workspace</p><h1 className="h2 mb-1">Operations and user administration</h1><p className="text-secondary mb-0">Manage the shared ticket queue and club accounts.</p></div></section><nav className="app-nav" aria-label="Administrator views"><button className={view === "queue" ? "app-nav__tab active" : "app-nav__tab"} aria-current={view === "queue" ? "page" : undefined} onClick={() => { onView("queue"); onBack(); }}>Ticket Queue</button><button className={view === "users" ? "app-nav__tab active" : "app-nav__tab"} aria-current={view === "users" ? "page" : undefined} onClick={() => { onView("users"); onBack(); }}>User Management</button></nav>{view === "users" ? <UserManagement csrfToken={csrfToken} /> : selectedTicketId ? <StaffTicketDetail ticketId={selectedTicketId} csrfToken={csrfToken} onBack={onBack} /> : <StaffTicketQueue onOpenTicket={onOpen} />}</>;
 }

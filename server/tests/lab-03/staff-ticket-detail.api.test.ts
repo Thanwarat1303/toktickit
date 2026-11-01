@@ -169,15 +169,23 @@ describe("IT Staff ticket operations", () => {
       .patch(`/api/staff/tickets/${ticketId}/workflow`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ itPriority: "Urgent", status: "Open", version: await currentTicketVersion() })
+      .send({ itPriority: "Urgent", version: await currentTicketVersion() })
       .expect(200)
-      .expect((response) => expect(response.body).toMatchObject({ id: ticketId, itPriority: "Urgent", status: "Open" }));
+      .expect((response) => expect(response.body).toMatchObject({ id: ticketId, itPriority: "Urgent", status: "New" }));
 
     await staffAgent
-      .patch(`/api/staff/tickets/${ticketId}/workflow`)
+      .patch(`/api/staff/tickets/${ticketId}/status`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ status: "New", version: await currentTicketVersion() })
+      .send({ currentStatus: "Open", version: await currentTicketVersion() })
+      .expect(200)
+      .expect((response) => expect(response.body.ticket).toMatchObject({ id: ticketId, status: "Open" }));
+
+    await staffAgent
+      .patch(`/api/staff/tickets/${ticketId}/status`)
+      .set("Origin", origin)
+      .set("X-CSRF-Token", staffCsrfToken)
+      .send({ currentStatus: "New", version: await currentTicketVersion() })
       .expect(409);
 
     await staffAgent
@@ -188,12 +196,12 @@ describe("IT Staff ticket operations", () => {
       .expect(400);
 
     await staffAgent
-      .patch(`/api/staff/tickets/${ticketId}/workflow`)
+      .patch(`/api/staff/tickets/${ticketId}/status`)
       .set("Origin", origin)
       .set("X-CSRF-Token", staffCsrfToken)
-      .send({ status: "Cancelled", confirm: true, version: await currentTicketVersion() })
+      .send({ currentStatus: "Cancelled", confirm: true, version: await currentTicketVersion() })
       .expect(200)
-      .expect((response) => expect(response.body.status).toBe("Cancelled"));
+      .expect((response) => expect(response.body.ticket.status).toBe("Cancelled"));
   });
 
   it("requires a current ticket version and never applies a stale workflow write", async () => {

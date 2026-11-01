@@ -8,8 +8,8 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-05..08 | action create edge cases | assignee/date/status/ticket-state validation | Planned |
 | API-09..15 | action edit/final/delete/version | no lost update, no delete, final action protected; an existing inactive assignee does not block an edit unless `assigneeId` is explicitly supplied | Pass (F4) |
 | API-16 | resolved/closed action policy | direct open-action create on RESOLVED/CLOSED/CANCELLED is rejected | Pass (F4) |
-| API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Planned |
-| API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Planned |
+| API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Pass (F6) |
+| API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Pass (F6) |
 | API-22a | ticket-write versioning | existing claim, owner assignment and workflow writes reject a missing/stale version and increment the ticket version exactly once on success | Pass (F5) |
 | API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Planned |
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
@@ -77,4 +77,20 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   later data.
 - `server/tests/lab-03/staff-ticket-detail.api.test.ts` supplies the current version on every
   successful Lab 3 staff write and verifies missing/stale workflow requests leave ticket fields
-  unchanged. The final route split and resolution gate remain planned for F6.
+  unchanged.
+
+## F6 evidence: Resolution gate and ticket status workflow
+
+- `PATCH /api/staff/tickets/:id/status` is the dedicated status endpoint. It requires the
+  loaded ticket version and any required confirmation, locks the Ticket while it checks the
+  transition matrix and resolution gate, then makes one conditional versioned update.
+- `PATCH /api/staff/tickets/:id/workflow` now accepts IT priority only. It rejects `status` and
+  `confirm`, preventing the legacy route from bypassing the resolution gate.
+- Staff ticket detail now includes `allowedTransitions` and `resolutionGate`. The client reads
+  those transitions from the server and sends status changes to the dedicated endpoint.
+- `server/tests/lab-04/ticket-workflow.api.test.ts` verifies owner, completed-action and
+  OPEN_ACTIONS gate reasons; all confirmation-required statuses; stale status writes;
+  Administrator claim/status/comment/note parity; the action-create versus resolve race; and
+  the rule that a resolved or closed ticket must be reopened before its owner can be removed,
+  and BR-14's invalid-owner-before-stale/missing ordering. Existing
+  Lab 3 staff-detail and comments/notes regression tests are re-run with the changed status route.
