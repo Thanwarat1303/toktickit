@@ -35,3 +35,7 @@ Invalid fields/missing version return 400; a missing ticket/action or another Re
 | `GET /api/dashboard/staff` | IT Staff, Administrator | queue metrics, recent tickets, open actions assigned to caller, caller’s recent actions; Administrator also gets user counts |
 
 All dashboard lists are at most five items unless a drill-down route is requested. A queue drill-down uses `actionAssigneeId=me` and returns the same distinct ticket set as `ticketsWithMyOpenActions`.
+
+Dashboard responses include `generatedAt` and `timezone: "Asia/Bangkok"`. Staff responses include `unassigned`, `assignedToMe`, zero-filled `byStatus` and `byItPriority`, `recentlyUpdated`, `ticketsWithMyOpenActions`, and at most five `myRecentActions` rows. Administrator responses additionally include `userCounts`; IT Staff responses never include that field. Requester responses include `openTickets`, `waitingForRequester`, `recentlyUpdated`, and `recentlyResolved`, scoped to the authenticated Requester. Action descriptions in `myRecentActions` are limited to 120 characters plus an ellipsis when truncated.
+
+The existing ticket lists compose dashboard drill-down filters: `recent=1` selects the same Bangkok seven-day window, `open=1` selects the five open statuses, `ownerId=me|unassigned` scopes the staff queue, and `actionAssigneeId=me` selects tickets with the caller's open PLANNED/IN_PROGRESS action. Other values for these flags return `400`.
