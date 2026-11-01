@@ -306,7 +306,7 @@ body {
 .staff-queue__filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
 .staff-queue__filters label { display: grid; gap: 0.35rem; font-size: 0.83rem; font-weight: 700; }
 .staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: none; }
-.staff-queue__table-wrap { overflow-x: auto; }
+.staff-queue__table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
 .staff-queue .ticket-table { width: 100%; min-width: 820px; }
 .staff-queue .ticket-table th button { border: 0; background: transparent; font: inherit; font-weight: 800; color: inherit; cursor: pointer; padding: 0; }
 .staff-queue__card { border: 1px solid var(--zen-border); border-radius: 0.7rem; padding: 0.85rem; display: grid; gap: 0.55rem; }
@@ -334,7 +334,10 @@ body {
 .user-management { display: grid; gap: 1.2rem; }
 .user-management__filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, .45fr) auto; gap: .75rem; align-items: end; }
 .user-management__filters label, .user-management__forms label { display: grid; gap: .35rem; font-weight: 700; }
-.user-management__table-wrap { overflow-x: auto; }
+.user-management__table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
+.user-management__table-wrap .ticket-table { width: 100%; table-layout: fixed; }
+.user-management__table-wrap .ticket-table td,
+.user-management__table-wrap .ticket-table th { overflow-wrap: anywhere; word-break: break-word; }
 .user-management__forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .user-management__inactive { color: #6b4b12; background: #fff2c6; }
 .staff-detail__attachments, .staff-detail__messages { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
@@ -512,10 +515,26 @@ body {
   .attachment-actions .btn { flex: 1; }
   .staff-detail__grid, .staff-detail__communications { grid-template-columns: 1fr; }
   .user-management__filters, .user-management__forms { grid-template-columns: 1fr; }
+  .user-management__table-wrap { overflow-x: hidden; }
+  .user-management__table-wrap .ticket-table th:nth-child(3),
+  .user-management__table-wrap .ticket-table td:nth-child(3),
+  .user-management__table-wrap .ticket-table th:nth-child(4),
+  .user-management__table-wrap .ticket-table td:nth-child(4) { display: none; }
+  .user-management__table-wrap .ticket-table th:first-child,
+  .user-management__table-wrap .ticket-table td:first-child { width: 36%; }
+  .user-management__table-wrap .ticket-table th:nth-child(2),
+  .user-management__table-wrap .ticket-table td:nth-child(2) { width: 48%; }
+  .user-management__table-wrap .ticket-table th:last-child,
+  .user-management__table-wrap .ticket-table td:last-child { width: 16%; }
   .staff-detail__panel dl { grid-template-columns: 1fr; gap: 0.2rem; }
 }
 
 @media (min-width: 768px) and (max-width: 991px) {
+  .ticket-list-card { min-width: 0; }
+  .staff-queue__table-wrap { min-width: 0; }
+  .staff-queue__filters-wrap, .staff-queue__table-wrap { display: none; }
+  .staff-queue__filter-toggle, .staff-queue__filters-mobile, .staff-queue__cards { display: block; }
+  .staff-queue__filters-mobile .staff-queue__filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0.75rem; }
   .staff-queue__filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .staff-queue__wide { display: none; }
 }
