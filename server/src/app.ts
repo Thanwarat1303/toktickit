@@ -783,19 +783,33 @@ app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, 
 
   try {
     const prisma = getPrisma();
-    if (ownerId !== null) {
-      const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
-      if (!owner || !owner.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(owner.role)) {
-        return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
-      }
-    }
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string; version: number }>>(
+        Prisma.sql`SELECT "id", "currentStatus", "version" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`,
+      );
+      const ticket = locked[0];
+      if (!ticket) return { kind: "missing" as const };
+      if (ticket.version !== version) return { kind: "stale" as const, currentVersion: ticket.version };
+      // A resolved ticket must retain an owner. Reopen it before unassigning so
+      // the persisted ticket cannot contradict the resolution-gate invariant.
+      if (ownerId === null && ticket.currentStatus === "Resolved") return { kind: "resolvedOwner" as const };
 
-    const result = await prisma.ticket.updateMany({ where: { id: ticketId, version }, data: { assignedStaffId: ownerId, version: { increment: 1 } } });
-    if (result.count !== 1) {
-      const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
-      if (!current) return res.status(404).json({ message: "Ticket was not found" });
-      return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: current.version });
-    }
+      if (ownerId !== null) {
+        const owner = await tx.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
+        if (!owner || !owner.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(owner.role)) return { kind: "invalidOwner" as const };
+      }
+
+      const update = await tx.ticket.updateMany({ where: { id: ticketId, version }, data: { assignedStaffId: ownerId, version: { increment: 1 } } });
+      if (update.count !== 1) {
+        const current = await tx.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        return { kind: "stale" as const, currentVersion: current?.version ?? version };
+      }
+      return { kind: "updated" as const };
+    });
+    if (outcome.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
+    if (outcome.kind === "stale") return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
+    if (outcome.kind === "invalidOwner") return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
+    if (outcome.kind === "resolvedOwner") return res.status(409).json({ error: "Reopen the ticket before removing its owner.", code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
     const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
     return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
   } catch {

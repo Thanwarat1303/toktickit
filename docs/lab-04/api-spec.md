@@ -25,6 +25,8 @@ Invalid fields/missing version return 400; a missing ticket/action or another Re
 
 `PATCH /api/staff/tickets/:id/workflow` is retained for Lab 3 compatibility but is now **IT-priority only**: its body is exactly `{ "itPriority": "Low"|"Medium"|"High"|"Urgent", "version": number }`. Supplying `status` or `confirm` to this route is `400` at `errors.status` / `errors.confirm`; it never changes `currentStatus`. Existing claim, assign, this priority route and mark-resolved require a current ticket `version`, return the incremented version, and return 400/409 for missing/stale versions. Comments and notes remain append-only and unversioned.
 
+`PATCH /api/staff/tickets/:id/owner` rejects `{ "ownerId": null }` for a RESOLVED ticket with `409 RESOLUTION_GATE` and `unmet: ["NO_OWNER"]`; reopen the ticket before unassigning it. This keeps the persisted ticket consistent with the resolution gate.
+
 ## Dashboards
 
 | Route | Roles | Contents |
