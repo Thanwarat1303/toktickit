@@ -9,20 +9,23 @@ import {
   type TicketListResponse,
 } from "./api.js";
 
-type SortValue = "createdAt-desc" | "createdAt-asc" | "summary-asc" | "summary-desc" | "priority-asc" | "priority-desc";
+type SortValue = "createdAt-desc" | "createdAt-asc" | "updatedAt-desc" | "summary-asc" | "summary-desc" | "priority-asc" | "priority-desc";
 
 interface MyTicketsProps {
   requester: { name: string };
   onOpenTicket: (ticketId: number) => void;
+  initialFilters?: { open?: boolean; recent?: boolean; status?: string; sortBy?: "updatedAt" };
 }
 
-export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
+export default function MyTickets({ requester, onOpenTicket, initialFilters = {} }: MyTicketsProps) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [relatedSystemId, setRelatedSystemId] = useState("");
   const [priority, setPriority] = useState("");
-  const [status, setStatus] = useState("");
-  const [sort, setSort] = useState<SortValue>("createdAt-desc");
+  const [status, setStatus] = useState(initialFilters.status ?? "");
+  const [sort, setSort] = useState<SortValue>(initialFilters.sortBy === "updatedAt" ? "updatedAt-desc" : "createdAt-desc");
+  const [open, setOpen] = useState(Boolean(initialFilters.open));
+  const [recent, setRecent] = useState(Boolean(initialFilters.recent));
   const [page, setPage] = useState(1);
   const [data, setData] = useState<TicketListResponse | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -41,7 +44,7 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
 
   useEffect(() => {
     let cancelled = false;
-    const [sortBy, sortOrder] = sort.split("-") as ["createdAt" | "summary" | "priority", "asc" | "desc"];
+    const [sortBy, sortOrder] = sort.split("-") as ["createdAt" | "updatedAt" | "summary" | "priority", "asc" | "desc"];
 
     setLoading(true);
     setError("");
@@ -56,6 +59,8 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
       sortOrder,
       page,
       pageSize: 10,
+      open: open || undefined,
+      recent: recent || undefined,
     })
       .then((response) => {
         if (!cancelled) setData(response);
@@ -73,14 +78,15 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
     return () => {
       cancelled = true;
     };
-  }, [search, categoryId, relatedSystemId, priority, status, sort, page]);
+  }, [search, categoryId, relatedSystemId, priority, status, sort, open, recent, page]);
 
   function resetPage(action: () => void) {
     action();
     setPage(1);
   }
 
-  const hasFilters = Boolean(search || categoryId || relatedSystemId || priority || status || sort !== "createdAt-desc");
+  const hasFilters = Boolean(search || categoryId || relatedSystemId || priority || status || open || recent || sort !== "createdAt-desc");
+  const dashboardFilter = open || recent;
 
   return (
     <section className="ticket-list-card" aria-labelledby="my-tickets-heading">
@@ -128,12 +134,14 @@ export default function MyTickets({ requester, onOpenTicket }: MyTicketsProps) {
         <label>
           Sort by
           <select className="form-select" value={sort} onChange={(event) => resetPage(() => setSort(event.target.value as SortValue))}>
-            <option value="createdAt-desc">Newest first</option><option value="createdAt-asc">Oldest first</option>
+            <option value="createdAt-desc">Newest first</option><option value="createdAt-asc">Oldest first</option><option value="updatedAt-desc">Recently updated</option>
             <option value="summary-asc">Summary A–Z</option><option value="summary-desc">Summary Z–A</option>
             <option value="priority-asc">Priority low–high</option><option value="priority-desc">Priority high–low</option>
           </select>
         </label>
       </div>
+
+      {dashboardFilter && <div className="alert alert-info d-flex justify-content-between align-items-center gap-2" role="status"><span>Showing: {open ? "Open tickets only" : "Recently updated tickets"}</span><button className="btn btn-sm btn-outline-success" onClick={() => { setOpen(false); setRecent(false); setPage(1); }}>Clear dashboard filter</button></div>}
 
       {loading && <div className="state-panel mt-4">Loading your tickets…</div>}
       {!loading && error && <div role="alert" className="state-panel state-panel--error mt-4">{error}</div>}

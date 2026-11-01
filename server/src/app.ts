@@ -504,6 +504,7 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
   const sortOrder = queryString(req.query.sortOrder) ?? "desc";
   const pageText = queryString(req.query.page);
   const pageSizeText = queryString(req.query.pageSize);
+  const openText = queryString(req.query.open);
   const recentText = queryString(req.query.recent);
 
   const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
@@ -519,7 +520,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
     !page ||
     !pageSize ||
     pageSize > 50 ||
-    (recentText !== undefined && recentText !== "1")
+    (recentText !== undefined && recentText !== "1") ||
+    (openText !== undefined && openText !== "1")
   ) {
     return res.status(400).json({ message: "Pagination and reference filters must be positive integers" });
   }
@@ -559,6 +561,7 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
           }
         : {}),
       ...(status ? { currentStatus: status } : {}),
+      ...(openText === "1" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] } } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
       ...(priorityText ? { priority: priorityValues[priorityText] } : {}),

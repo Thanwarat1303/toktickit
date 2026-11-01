@@ -9,6 +9,9 @@ export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
 export interface AuthUser { id: number; name: string; email: string; role: UserRole; isActive: boolean; mustChangePassword: boolean; }
 export interface AuthSession { user: AuthUser; csrfToken: string; }
 
+export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TicketStatus = "New" | "Open" | "In Progress" | "Waiting for Requester" | "Resolved" | "Closed" | "Reopened" | "Cancelled";
+
 export interface RelatedSystem {
   id: number;
   name: string;
@@ -100,10 +103,12 @@ export interface TicketListQuery {
   categoryId?: number;
   relatedSystemId?: number;
   priority?: "Low" | "Medium" | "High";
-  sortBy?: "createdAt" | "summary" | "priority";
+  sortBy?: "createdAt" | "updatedAt" | "summary" | "priority";
   sortOrder?: "asc" | "desc";
   page?: number;
   pageSize?: number;
+  open?: boolean;
+  recent?: boolean;
 }
 
 export interface StaffTicketSummary {
@@ -132,11 +137,54 @@ export interface StaffTicketQueueQuery {
   relatedSystemId?: number;
   itPriority?: "Low" | "Medium" | "High" | "Urgent";
   status?: string;
-  ownerId?: number;
+  ownerId?: number | "me" | "unassigned";
   sortBy?: "createdAt" | "updatedAt" | "itPriority" | "status";
   sortDir?: "asc" | "desc";
   page?: number;
   pageSize?: number;
+  open?: boolean;
+  recent?: boolean;
+  actionAssigneeId?: "me";
+}
+
+export interface TicketBrief {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  itPriority: Priority;
+  updatedAt: string;
+}
+
+export interface RequesterDashboardData {
+  generatedAt: string;
+  timezone: string;
+  openTickets: number;
+  waitingForRequester: number;
+  recentlyUpdated: TicketBrief[];
+  recentlyResolved: TicketBrief[];
+}
+
+export interface ActionBrief {
+  id: number;
+  ticketId: number;
+  ticketNumber: string;
+  status: string;
+  actionAt: string;
+  description: string;
+}
+
+export interface StaffDashboardData {
+  generatedAt: string;
+  timezone: string;
+  unassigned: number;
+  assignedToMe: number;
+  ticketsWithMyOpenActions: number;
+  myRecentActions: ActionBrief[];
+  byStatus: Record<string, number>;
+  byItPriority: Record<string, number>;
+  recentlyUpdated: TicketBrief[];
+  userCounts?: { total: number; active: number; inactive: number; byRole: Record<string, number> };
 }
 
 export interface StaffTicketDetail extends Omit<StaffTicketSummary, "requesterName" | "owner"> {
@@ -168,9 +216,11 @@ export type WorkflowStatus =
   | "Cancelled";
 
 export class ApiRequestError extends Error {
-  constructor(message: string) {
+  status?: number;
+  constructor(message: string, status?: number) {
     super(message);
     this.name = "ApiRequestError";
+    this.status = status;
   }
 }
 
@@ -280,7 +330,7 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   });
 
   if (!response.ok) {
-    throw new ApiRequestError(await getErrorMessage(response, "Unable to load tickets"));
+    throw new ApiRequestError(await getErrorMessage(response, "Unable to load tickets"), response.status);
   }
 
   return response.json();
@@ -407,7 +457,19 @@ export async function getStaffTickets(query: StaffTicketQueueQuery): Promise<Sta
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
   const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
-  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"));
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"), response.status);
+  return response.json();
+}
+
+export async function fetchRequesterDashboard(): Promise<RequesterDashboardData> {
+  const response = await fetch(`${API_URL}/api/dashboard/requester`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the dashboard"), response.status);
+  return response.json();
+}
+
+export async function fetchStaffDashboard(): Promise<StaffDashboardData> {
+  const response = await fetch(`${API_URL}/api/dashboard/staff`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the dashboard"), response.status);
   return response.json();
 }
 
