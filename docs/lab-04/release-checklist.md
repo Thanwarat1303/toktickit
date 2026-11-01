@@ -73,5 +73,8 @@ The current local verification has been recorded without inflating the release s
 - Client: `npm test -- --run` — 37/37 passed.
 - Client: `npm run build` — passed (`tsc` and Vite build).
 - Server: `npm run build` — passed (`tsc`).
-- Server: `npm test` — not yet complete because the local PostgreSQL service at `localhost:15433` was unavailable; database-backed tests reported connection failures. Start the project database, reseed it from a clean state, then rerun the server suite before checking any release item above.
-- Playwright and screenshot capture remain pending until the server/database are available.
+- Server: `npm test` — 22 files, 104/104 passed after resetting the shared seed credentials and reseeding the development fixture.
+- Server: `npx prisma migrate status` — 8 migrations found; database schema is up to date.
+- Existing Playwright suite: 4/4 passed (Lab 3 authentication smoke flow, desktop and mobile).
+- Lab 4 evidence captured at 1280×900, 768×1024 and 375×812 for Staff/Requester dashboards, Ticket Queue, Staff Ticket Detail, Actions Taken form and Administrator User Management. Tablet and mobile widths were checked from the generated image dimensions; two overflow defects were fixed before capture.
+- The dedicated Lab 4 accessibility/E2E suite is still a release task, not claimed as complete by this log.
