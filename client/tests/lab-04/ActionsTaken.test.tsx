@@ -47,4 +47,35 @@ describe("ActionsTaken", () => {
     await user.click(await screen.findByRole("button", { name: "History" }));
     expect(await screen.findByText("Revision 1")).toBeInTheDocument();
   });
+
+  it("omits an unchanged assignee when editing another field", async () => {
+    vi.spyOn(api, "fetchActions").mockResolvedValue([action]);
+    vi.spyOn(api, "getAssignableStaffUsers").mockResolvedValue([]);
+    const update = vi.spyOn(api, "updateAction").mockResolvedValue({ ...action, description: "Updated description", version: 2 });
+    const user = userEvent.setup();
+    render(<ActionsTaken ticketId={12} ticketStatus="Open" csrfToken="csrf" />);
+    const item = await screen.findByText("Check network");
+    await user.click(item.closest("article")!.querySelector("button")!);
+    const description = screen.getByLabelText("Description");
+    await user.clear(description);
+    await user.type(description, "Updated description");
+    await user.click(screen.getByRole("button", { name: "Save action" }));
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    expect(update.mock.calls[0][3]).toEqual({ description: "Updated description" });
+  });
+
+  it("defaults a new action to Completed on a Resolved ticket", async () => {
+    vi.spyOn(api, "fetchActions").mockResolvedValue([]);
+    vi.spyOn(api, "getAssignableStaffUsers").mockResolvedValue([]);
+    const create = vi.spyOn(api, "createAction").mockResolvedValue(action);
+    const user = userEvent.setup();
+    render(<ActionsTaken ticketId={12} ticketStatus="Resolved" csrfToken="csrf" />);
+    await user.click(await screen.findByRole("button", { name: "Add action" }));
+    expect(screen.getByLabelText(/^Status/)).toHaveValue("COMPLETED");
+    await user.type(screen.getByLabelText("Description"), "Record completed work");
+    await user.type(screen.getByLabelText("Result"), "Finished");
+    await user.click(screen.getByRole("button", { name: "Save action" }));
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(create.mock.calls[0][1].status).toBe("COMPLETED");
+  });
 });

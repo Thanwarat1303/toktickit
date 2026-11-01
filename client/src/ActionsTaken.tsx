@@ -15,7 +15,11 @@ import {
 
 type FormValue = Omit<ActionInput, "actionAt"> & { actionAt: string };
 const statusLabel: Record<ActionStatus, string> = { PLANNED: "Planned", IN_PROGRESS: "In progress", COMPLETED: "Completed", CANCELLED: "Cancelled" };
-const emptyForm = (): FormValue => ({ description: "", status: "PLANNED", assigneeId: null, actionAt: new Date().toISOString().slice(0, 16), result: "", followUpRequired: false, followUpNote: "", attachmentNotes: "" });
+const localDateTime = (value: Date) => {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+};
+const emptyForm = (status: ActionStatus = "PLANNED"): FormValue => ({ description: "", status, assigneeId: null, actionAt: localDateTime(new Date()), result: "", followUpRequired: false, followUpNote: "", attachmentNotes: "" });
 const actionDate = (value: string) => value ? new Date(value).toISOString() : new Date().toISOString();
 
 export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ticketStatus, onChanged }: { ticketId: number; csrfToken?: string; readOnly?: boolean; ticketStatus: string; onChanged?: () => void }) {
@@ -40,10 +44,10 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
   const createStatuses: ActionStatus[] = ticketStatus === "Resolved" ? ["COMPLETED"] : ["PLANNED", "IN_PROGRESS", "COMPLETED"];
   const assignable = useMemo(() => users, [users]);
 
-  function beginCreate() { setEditing(null); setErrors({}); setMessage(""); setConflict(""); setForm(emptyForm()); }
+  function beginCreate() { setEditing(null); setErrors({}); setMessage(""); setConflict(""); setForm(emptyForm(ticketStatus === "Resolved" ? "COMPLETED" : "PLANNED")); }
   function beginEdit(action: ActionTaken) {
     setEditing(action.id); setErrors({}); setMessage(""); setConflict("");
-    setForm({ description: action.description, status: action.status, assigneeId: action.assignee?.id ?? null, actionAt: new Date(action.actionAt).toISOString().slice(0, 16), result: action.result, followUpRequired: action.followUpRequired, followUpNote: action.followUpNote, attachmentNotes: action.attachmentNotes });
+    setForm({ description: action.description, status: action.status, assigneeId: action.assignee?.id ?? null, actionAt: localDateTime(new Date(action.actionAt)), result: action.result, followUpRequired: action.followUpRequired, followUpNote: action.followUpNote, attachmentNotes: action.attachmentNotes });
   }
   function setField<K extends keyof FormValue>(field: K, value: FormValue[K]) { setForm((current) => current ? { ...current, [field]: value } : current); setErrors((current) => ({ ...current, [field]: "" })); }
   function editStatuses(action: ActionTaken) { const moves: Record<ActionStatus, ActionStatus[]> = { PLANNED: ["IN_PROGRESS", "COMPLETED", "CANCELLED"], IN_PROGRESS: ["COMPLETED", "CANCELLED"], COMPLETED: [], CANCELLED: [] }; return [action.status, ...moves[action.status]]; }
@@ -57,7 +61,22 @@ export default function ActionsTaken({ ticketId, csrfToken, readOnly = false, ti
     setSaving(true); setMessage(""); setConflict("");
     try {
       const input: ActionInput = { ...form, description: form.description.trim(), result: form.result.trim(), followUpNote: form.followUpNote.trim(), attachmentNotes: form.attachmentNotes.trim(), actionAt: actionDate(form.actionAt) };
-      if (editing === null) await createAction(ticketId, input, csrfToken); else await updateAction(ticketId, editing, actions.find((a) => a.id === editing)?.version ?? 0, input, csrfToken);
+      if (editing === null) {
+        await createAction(ticketId, input, csrfToken);
+      } else {
+        const original = actions.find((a) => a.id === editing);
+        if (!original) throw new Error("The action is no longer available.");
+        const changed: Partial<ActionInput> = {};
+        if (input.description !== original.description) changed.description = input.description;
+        if (input.status !== original.status) changed.status = input.status;
+        if (input.assigneeId !== (original.assignee?.id ?? null)) changed.assigneeId = input.assigneeId;
+        if (input.actionAt !== original.actionAt) changed.actionAt = input.actionAt;
+        if (input.result !== original.result) changed.result = input.result;
+        if (input.followUpRequired !== original.followUpRequired) changed.followUpRequired = input.followUpRequired;
+        if (input.followUpNote !== original.followUpNote) changed.followUpNote = input.followUpNote;
+        if (input.attachmentNotes !== original.attachmentNotes) changed.attachmentNotes = input.attachmentNotes;
+        await updateAction(ticketId, editing, original.version, changed, csrfToken);
+      }
       setForm(null); setEditing(null); await load(); onChanged?.();
     } catch (error) {
       const apiError = error instanceof ApiRequestError ? error : null;
