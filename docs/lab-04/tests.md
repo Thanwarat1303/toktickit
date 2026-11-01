@@ -14,7 +14,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Planned |
 | API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
-| API-25..28 | dashboards | values and drill-down sets equal raw database queries | Planned |
+| API-25..28 | dashboards | values and drill-down sets equal raw database queries, Bangkok seven-day boundary and zero-filled metrics | Pass (F5) |
 | MIG-01..03 | migration and seed | additive migration, version defaults, revision constraints and idempotent seed | Pass (F2) |
 | UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Planned |
 | UI-07..10 | workflow | legal buttons, gate reasons, confirmation, version sent | Planned |
@@ -35,6 +35,8 @@ All rows are **Planned** until implementation evidence is recorded.
 | FR-15, BR-21 | MIG-01..03, SEC-01..03, A11Y-01..04, RSP-01..02, REG-01 |
 
 ## Lab 3 regression changes expected
+
+F5 implements `GET /api/dashboard/requester` and `GET /api/dashboard/staff`. Dashboard calculations are server-side, role-scoped, limited to five brief rows, and use one Asia/Bangkok window helper. Staff queue and Requester list drill-downs accept the documented `open=1`, `recent=1`, `ownerId` and `actionAssigneeId` filters.
 
 Staff ticket-detail tests will provide ticket version and satisfy the resolution gate before resolving. The existing `/workflow` tests are changed to send only `itPriority`; status assertions move to `/status`, and attempts to send `status`/`confirm` through `/workflow` assert `400`. Administrator ticket operations now succeed where Lab 3 expected 403. Client tests assert version in ticket-write bodies. Existing comments/notes remain unversioned. Every altered Lab 3 expectation is updated in the same feature PR that changes the behaviour.
 

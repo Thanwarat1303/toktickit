@@ -21,6 +21,7 @@ import {
   validRole,
   type AuthenticatedRequest,
 } from "./auth.js";
+import { OPEN_TICKET_STATUSES, recentUpdatedFilter, registerDashboardRoutes } from "./dashboard.js";
 
 export const app = express();
 
@@ -31,6 +32,8 @@ app.use(
   }),
 );
 app.use(express.json());
+
+registerDashboardRoutes(app);
 
 // Issue 2 - API health check
 app.get("/api/health", (_req: Request, res: Response) => {
@@ -501,6 +504,7 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
   const sortOrder = queryString(req.query.sortOrder) ?? "desc";
   const pageText = queryString(req.query.page);
   const pageSizeText = queryString(req.query.pageSize);
+  const recentText = queryString(req.query.recent);
 
   const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
   const relatedSystemId = relatedSystemIdText
@@ -514,7 +518,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
     (relatedSystemIdText && !relatedSystemId) ||
     !page ||
     !pageSize ||
-    pageSize > 50
+    pageSize > 50 ||
+    (recentText !== undefined && recentText !== "1")
   ) {
     return res.status(400).json({ message: "Pagination and reference filters must be positive integers" });
   }
@@ -523,8 +528,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
     return res.status(400).json({ message: "Priority must be Low, Medium, or High" });
   }
 
-  if (!["createdAt", "summary", "priority"].includes(sortBy)) {
-    return res.status(400).json({ message: "sortBy must be createdAt, summary, or priority" });
+  if (!["createdAt", "updatedAt", "summary", "priority"].includes(sortBy)) {
+    return res.status(400).json({ message: "sortBy must be createdAt, updatedAt, summary, or priority" });
   }
 
   if (sortOrder !== "asc" && sortOrder !== "desc") {
@@ -557,6 +562,7 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
       ...(priorityText ? { priority: priorityValues[priorityText] } : {}),
+      ...(recentText === "1" ? recentUpdatedFilter() : {}),
     };
 
     const direction: Prisma.SortOrder = sortOrder;
@@ -565,6 +571,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
         ? { summary: direction }
         : sortBy === "priority"
           ? { priority: direction }
+        : sortBy === "updatedAt"
+          ? { updatedAt: direction }
           : { createdAt: direction };
 
     const [tickets, totalItems] = await Promise.all([
@@ -612,17 +620,20 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF", "ADMINISTRATO
   const itPriorityText = queryString(req.query.itPriority);
   const status = queryString(req.query.status);
   const ownerIdText = queryString(req.query.ownerId);
+  const actionAssigneeIdText = queryString(req.query.actionAssigneeId);
+  const openText = queryString(req.query.open);
+  const recentText = queryString(req.query.recent);
   const sortBy = queryString(req.query.sortBy) ?? "createdAt";
   const sortDir = queryString(req.query.sortDir) ?? "desc";
   const pageText = queryString(req.query.page);
   const pageSizeText = queryString(req.query.pageSize);
   const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
   const relatedSystemId = relatedSystemIdText ? queryPositiveInteger(relatedSystemIdText) : undefined;
-  const ownerId = ownerIdText === "0" ? 0 : ownerIdText ? queryPositiveInteger(ownerIdText) : undefined;
+  const ownerId = ownerIdText === "0" || ownerIdText === "unassigned" ? 0 : ownerIdText === "me" ? req.auth!.user.id : ownerIdText ? queryPositiveInteger(ownerIdText) : undefined;
   const page = pageText ? queryPositiveInteger(pageText) : 1;
   const pageSize = pageSizeText ? queryPositiveInteger(pageSizeText) : 20;
 
-  if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || !page || !pageSize || pageSize > 50) {
+  if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || (actionAssigneeIdText !== undefined && actionAssigneeIdText !== "me") || (openText !== undefined && openText !== "1") || (recentText !== undefined && recentText !== "1") || !page || !pageSize || pageSize > 50) {
     return res.status(400).json({ message: "Pagination and filters must use valid positive integers (ownerId 0 means unassigned)" });
   }
   if (itPriorityText && !(itPriorityText in itPriorityValues)) {
@@ -647,6 +658,9 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF", "ADMINISTRATO
       ...(itPriorityText ? { itPriority: itPriorityValues[itPriorityText] } : {}),
       ...(status ? { currentStatus: status } : {}),
       ...(ownerId === 0 ? { assignedStaffId: null } : ownerId ? { assignedStaffId: ownerId } : {}),
+      ...(openText === "1" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] } } : {}),
+      ...(recentText === "1" ? recentUpdatedFilter() : {}),
+      ...(actionAssigneeIdText === "me" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] }, actionsTaken: { some: { assigneeId: req.auth!.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } } : {}),
     };
     const direction: Prisma.SortOrder = sortDir as Prisma.SortOrder;
     const orderBy: Prisma.TicketOrderByWithRelationInput =
