@@ -147,6 +147,13 @@ export interface StaffTicketQueueQuery {
   actionAssigneeId?: "me";
 }
 
+function serializeQueryValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === true) return "1";
+  if (value === false) return undefined;
+  return String(value);
+}
+
 export interface TicketBrief {
   id: number;
   ticketNumber: string;
@@ -320,9 +327,8 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") {
-      params.set(key, String(value));
-    }
+    const serialized = serializeQueryValue(value);
+    if (serialized !== undefined) params.set(key, serialized);
   }
 
   const response = await fetch(`${API_URL}/api/tickets?${params.toString()}`, {
@@ -454,7 +460,8 @@ export async function createTicket(
 export async function getStaffTickets(query: StaffTicketQueueQuery): Promise<StaffTicketQueueResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
+    const serialized = serializeQueryValue(value);
+    if (serialized !== undefined) params.set(key, serialized);
   }
   const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
   if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load the ticket queue"), response.status);
