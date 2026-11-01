@@ -206,6 +206,39 @@ export interface StaffTicketDetail extends Omit<StaffTicketSummary, "requesterNa
   description: string;
 }
 
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  performedBy: { id: number; name: string };
+  assignee: { id: number; name: string } | null;
+  status: ActionStatus;
+  actionAt: string;
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string;
+  attachmentNotes: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ActionRevision {
+  id: number;
+  actionTakenId: number;
+  revision: number;
+  editedBy: { id: number; name: string };
+  editedAt: string;
+  status: ActionStatus;
+  assigneeId: number | null;
+  actionAt: string;
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string;
+  attachmentNotes: string;
+}
+
 export interface AssignableStaffUser {
   id: number;
   name: string;
@@ -224,10 +257,16 @@ export type WorkflowStatus =
 
 export class ApiRequestError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  code?: string;
+  currentVersion?: number;
+  fieldErrors?: Record<string, string>;
+  constructor(message: string, status?: number, details?: { code?: string; currentVersion?: number; fieldErrors?: Record<string, string> }) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
+    this.code = details?.code;
+    this.currentVersion = details?.currentVersion;
+    this.fieldErrors = details?.fieldErrors;
   }
 }
 
@@ -265,6 +304,24 @@ async function getErrorMessage(response: Response, fallback: string) {
     return fallback;
   } catch {
     return fallback;
+  }
+}
+
+async function throwApiError(response: Response, fallback: string): Promise<never> {
+  try {
+    const data = await response.json() as { message?: unknown; error?: unknown; code?: unknown; currentVersion?: unknown; errors?: unknown };
+    const message = typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : fallback;
+    const fieldErrors = data.errors && typeof data.errors === "object"
+      ? Object.fromEntries(Object.entries(data.errors as Record<string, unknown>).filter(([, value]) => typeof value === "string")) as Record<string, string>
+      : undefined;
+    throw new ApiRequestError(message, response.status, {
+      code: typeof data.code === "string" ? data.code : undefined,
+      currentVersion: typeof data.currentVersion === "number" ? data.currentVersion : undefined,
+      fieldErrors,
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw error;
+    throw new ApiRequestError(fallback, response.status);
   }
 }
 
@@ -484,6 +541,43 @@ export async function getStaffTicketDetail(ticketId: number): Promise<StaffTicke
   const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}`, { credentials: "include" });
   if (!response.ok) throw new ApiRequestError(await getErrorMessage(response, "Unable to load staff ticket details"));
   return response.json();
+}
+
+export async function fetchActions(ticketId: number): Promise<ActionTaken[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/actions`, { credentials: "include" });
+  if (!response.ok) return throwApiError(response, "Unable to load actions.");
+  const body = await response.json() as { actions: ActionTaken[] };
+  return body.actions;
+}
+
+export interface ActionInput {
+  description: string;
+  status: ActionStatus;
+  assigneeId: number | null;
+  actionAt: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string;
+  attachmentNotes: string;
+}
+
+export async function createAction(ticketId: number, input: ActionInput, csrfToken: string): Promise<ActionTaken> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/actions`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify(input) });
+  if (!response.ok) return throwApiError(response, "Unable to create action.");
+  return response.json();
+}
+
+export async function updateAction(ticketId: number, actionId: number, version: number, input: Partial<ActionInput>, csrfToken: string): Promise<ActionTaken> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/actions/${actionId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify({ ...input, version }) });
+  if (!response.ok) return throwApiError(response, "Unable to update action.");
+  return response.json();
+}
+
+export async function fetchActionRevisions(ticketId: number, actionId: number): Promise<ActionRevision[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/actions/${actionId}/revisions`, { credentials: "include" });
+  if (!response.ok) return throwApiError(response, "Unable to load action history.");
+  const body = await response.json() as { revisions: ActionRevision[] };
+  return body.revisions;
 }
 
 async function staffMutation<T>(path: string, method: "POST" | "PATCH", csrfToken: string, body?: unknown): Promise<T> {
