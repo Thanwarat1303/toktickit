@@ -12,6 +12,7 @@ import {
   type AttachmentSummary,
   type TicketDetail as TicketDetailData,
 } from "./api.js";
+import ActionsTaken from "./ActionsTaken.js";
 
 interface TicketDetailProps {
   requester: { name: string };
@@ -238,6 +239,7 @@ export default function TicketDetail({ requester, csrfToken, ticketId, onBack }:
             <h3 className="h5">Description</h3>
             <p className="mb-0">{ticket.description}</p>
           </div>
+          <ActionsTaken ticketId={ticketId} readOnly ticketStatus={ticket.status} />
           <section className="attachments-panel mt-4" aria-labelledby="comments-heading">
             <p className="eyebrow mb-1">Conversation</p><h3 id="comments-heading" className="h5">Public Comments</h3>
             {commentError && <div role="alert" className="state-panel state-panel--error">{commentError}</div>}
