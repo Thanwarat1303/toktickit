@@ -18,7 +18,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | MIG-01..03 | migration and seed | additive migration, version defaults, revision constraints and idempotent seed | Pass (F2) |
 | UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Planned |
 | UI-07..10 | workflow | legal buttons, gate reasons, confirmation, version sent | Planned |
-| UI-11..14 | dashboards | role navigation, cards, drill-down, loading/empty/error/forbidden | Planned |
+| UI-11..14 | dashboards | role navigation, cards, drill-down, loading/empty/error/forbidden | Pass (#64) |
 | SEC-01..03 | security | route-role sweep, 401/403/404 ladder, CSRF | Planned |
 | A11Y-01..04 | accessibility | keyboard, focus, contrast, text cues | Planned |
 | RSP-01..02 | responsive | dashboard/detail at 375/768/1280 without overflow | Planned |
@@ -106,3 +106,12 @@ Staff ticket-detail tests will provide ticket version and satisfy the resolution
   five-row limits, and the exact Bangkok seven-day boundary.
 - A ticket belonging to another Requester is excluded, and a deactivated
   Requester profile receives `403` rather than an empty dashboard.
+
+## #64 evidence: Dashboard UI and drill-down
+
+- `client/tests/lab-04/routes.test.ts` verifies role-scoped navigation, safe parsing of
+  hand-edited hashes, deep-linked ticket details, and exact queue/My Tickets filter URLs.
+- `client/tests/lab-04/Dashboard.test.tsx` verifies Requester and Staff dashboard cards,
+  zero states, Administrator user counts, real links, and retry behavior.
+- Dashboard links are real anchors. Queue and My Tickets receive the dashboard filters
+  and display a notice with a clear action when a non-local filter is active.

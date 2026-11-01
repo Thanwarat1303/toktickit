@@ -63,6 +63,14 @@ body {
   max-width: 800px;
 }
 
+.page-content--wide {
+  max-width: 1140px;
+}
+
+.dashboard-card {
+  border-color: var(--zen-border);
+}
+
 .hero-copy {
   max-width: 650px;
 }

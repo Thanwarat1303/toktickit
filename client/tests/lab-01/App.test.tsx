@@ -25,9 +25,12 @@ describe("App", () => {
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
     vi.spyOn(api, "getStaffTickets").mockResolvedValue({ tickets: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 } });
     vi.spyOn(api, "getManagedUsers").mockResolvedValue([]);
+    vi.spyOn(api, "fetchStaffDashboard").mockResolvedValue({ generatedAt: "2026-11-01T00:00:00.000Z", timezone: "Asia/Bangkok", unassigned: 0, assignedToMe: 0, ticketsWithMyOpenActions: 0, myRecentActions: [], byStatus: {}, byItPriority: {}, recentlyUpdated: [] });
 
     const user = userEvent.setup();
     render(<App />);
+    expect(await screen.findByRole("heading", { name: /dashboard/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ticket Queue" }));
     expect(await screen.findByRole("heading", { name: /ticket queue/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "User Management" }));
     expect(await screen.findByRole("heading", { name: /user management/i })).toBeInTheDocument();
