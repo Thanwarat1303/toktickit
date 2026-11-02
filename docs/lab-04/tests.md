@@ -1,6 +1,8 @@
 # Lab 4 Test Plan and Traceability
 
-All rows are **Planned** until implementation evidence is recorded.
+Rows are **Planned** until implementation evidence is recorded. A **Pass** entry
+identifies the feature or main-branch verification that produced the evidence;
+it does not turn unrelated planned rows into Pass entries.
 
 | ID | Area | Expected result | Status |
 |---|---|---|---|
@@ -23,7 +25,7 @@ All rows are **Planned** until implementation evidence is recorded.
 | A11Y-01..04 | accessibility | keyboard, focus, contrast, text cues | Planned |
 | RSP-01..02 | responsive | dashboard/detail at 375/768/1280 without overflow | Planned |
 | E2E-01..04 | end-to-end | actions lifecycle, resolution, dashboards, Administrator parity | Planned |
-| REG-01 | regression | Labs 1-3 server/client/Playwright suites pass | Planned |
+| REG-01 | regression | Main-branch server/client/Playwright suites pass | Pass (main `e211b14`, 2026-11-02) |
 
 ## Traceability
 

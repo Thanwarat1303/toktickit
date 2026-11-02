@@ -79,3 +79,21 @@ The current local verification has been recorded without inflating the release s
 - Lab 4 evidence captured at 1280×900, 768×1024 and 375×812 for Staff/Requester dashboards, Ticket Queue, Staff Ticket Detail, Actions Taken form and Administrator User Management. Tablet and mobile widths were checked from the generated image dimensions; two overflow defects were fixed before capture.
 - Administrator Dashboard, Ticket Queue and User Management were recaptured at 375px after the navigation fix. The regression test checks `document.documentElement.scrollWidth <= window.innerWidth` on all three destinations instead of inferring overflow from image dimensions.
 - The dedicated Lab 4 accessibility/E2E suite is still a release task, not claimed as complete by this log.
+
+## 8. Post-merge verification on `main`
+
+After pull request #78 merged, the merged commit `e211b14a44b54e45232cdbad9bb816785a5d9f7f`
+was checked in a clean worktree on 2026-11-02. The shared development fixture was
+reseeded before and after the browser suite because the first-sign-in scenario
+intentionally changes a seeded password.
+
+- Server: `npm test` — 22 files, 104/104 passed.
+- Client: `npm test` — 10 files, 37/37 passed.
+- Playwright: `npm test` — 6/6 passed, including the fresh-seed Administrator
+  password-change and 375px navigation-overflow regression in both configured projects.
+- Server and client: `npm run build` — passed.
+- Server: `npx prisma migrate status` — 8 migrations found; schema up to date.
+
+This records only the suites that are configured in this repository at this commit.
+The unchecked evidence checklist items above remain open until their corresponding
+dedicated tests or captures are added; they are not represented as completed by this log.
