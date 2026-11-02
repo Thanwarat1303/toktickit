@@ -20,6 +20,13 @@ enum UserRole {
   ADMINISTRATOR
 }
 
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id                 Int      @id @default(autoincrement())
   name              String
@@ -35,6 +42,9 @@ model User {
   comments         TicketComment[]
   internalNotes    InternalNote[]
   sessions         Session[]
+  performedActions ActionTaken[]         @relation("ActionPerformedBy")
+  assignedActions  ActionTaken[]         @relation("ActionAssignee")
+  actionRevisions  ActionTakenRevision[] @relation("ActionRevisionEditor")
 
   @@index([role, isActive])
 }
@@ -94,6 +104,7 @@ model Ticket {
   currentStatus   String   @default("New")
   assignedStaffId Int?
   itPriority      Priority @default(LOW)
+  version         Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -104,12 +115,59 @@ model Ticket {
   attachments   Attachment[]
   comments      TicketComment[]
   internalNotes InternalNote[]
+  actionsTaken  ActionTaken[]
 
   @@index([requesterId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([createdAt])
   @@index([assignedStaffId, currentStatus])
+}
+
+model ActionTaken {
+  id               Int          @id @default(autoincrement())
+  ticketId         Int
+  performedById    Int
+  assigneeId       Int?
+  status           ActionStatus @default(PLANNED)
+  actionAt         DateTime     @default(now())
+  description      String
+  result           String       @default("")
+  followUpRequired Boolean      @default(false)
+  followUpNote     String       @default("")
+  attachmentNotes  String       @default("")
+  version          Int          @default(1)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  ticket      Ticket                @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  performedBy User                  @relation("ActionPerformedBy", fields: [performedById], references: [id], onDelete: Restrict)
+  assignee    User?                 @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  revisions   ActionTakenRevision[]
+
+  @@index([ticketId, actionAt, id])
+  @@index([assigneeId, status])
+}
+
+model ActionTakenRevision {
+  id               Int          @id @default(autoincrement())
+  actionTakenId    Int
+  revision         Int
+  editedById       Int
+  editedAt         DateTime     @default(now())
+  status           ActionStatus
+  assigneeId       Int?
+  actionAt         DateTime
+  description      String
+  result           String
+  followUpRequired Boolean
+  followUpNote     String
+  attachmentNotes  String
+
+  actionTaken ActionTaken @relation(fields: [actionTakenId], references: [id], onDelete: Restrict)
+  editedBy    User        @relation("ActionRevisionEditor", fields: [editedById], references: [id], onDelete: Restrict)
+
+  @@unique([actionTakenId, revision])
 }
 
 model TicketComment {

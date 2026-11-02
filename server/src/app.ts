@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { Prisma, Priority } from "@prisma/client";
+import { ActionStatus, Prisma, Priority } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -21,6 +21,7 @@ import {
   validRole,
   type AuthenticatedRequest,
 } from "./auth.js";
+import { OPEN_TICKET_STATUSES, recentUpdatedFilter, registerDashboardRoutes } from "./dashboard.js";
 
 export const app = express();
 
@@ -31,6 +32,8 @@ app.use(
   }),
 );
 app.use(express.json());
+
+registerDashboardRoutes(app);
 
 // Issue 2 - API health check
 app.get("/api/health", (_req: Request, res: Response) => {
@@ -181,6 +184,20 @@ const allowedStaffTransitions: Record<(typeof ticketStatuses)[number], readonly 
 };
 
 const confirmationRequiredStatuses = new Set(["Resolved", "Closed", "Reopened", "Cancelled"]);
+
+type ResolutionGateReason = "NO_OWNER" | "NO_COMPLETED_ACTION" | "OPEN_ACTIONS";
+
+function resolutionGate(ownerId: number | null, actions: Array<{ status: ActionStatus }>) {
+  const unmet: ResolutionGateReason[] = [];
+  if (ownerId === null) unmet.push("NO_OWNER");
+  if (!actions.some((action) => action.status === ActionStatus.COMPLETED)) unmet.push("NO_COMPLETED_ACTION");
+  if (actions.some((action) => action.status === ActionStatus.PLANNED || action.status === ActionStatus.IN_PROGRESS)) unmet.push("OPEN_ACTIONS");
+  return { ok: unmet.length === 0, unmet };
+}
+
+function allowedTransitions(status: string) {
+  return [...(allowedStaffTransitions[status as (typeof ticketStatuses)[number]] ?? [])];
+}
 
 function isTicketStatus(value: unknown): value is (typeof ticketStatuses)[number] {
   return typeof value === "string" && ticketStatuses.includes(value as (typeof ticketStatuses)[number]);
@@ -487,6 +504,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
   const sortOrder = queryString(req.query.sortOrder) ?? "desc";
   const pageText = queryString(req.query.page);
   const pageSizeText = queryString(req.query.pageSize);
+  const openText = queryString(req.query.open);
+  const recentText = queryString(req.query.recent);
 
   const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
   const relatedSystemId = relatedSystemIdText
@@ -500,7 +519,9 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
     (relatedSystemIdText && !relatedSystemId) ||
     !page ||
     !pageSize ||
-    pageSize > 50
+    pageSize > 50 ||
+    (recentText !== undefined && recentText !== "1") ||
+    (openText !== undefined && openText !== "1")
   ) {
     return res.status(400).json({ message: "Pagination and reference filters must be positive integers" });
   }
@@ -509,8 +530,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
     return res.status(400).json({ message: "Priority must be Low, Medium, or High" });
   }
 
-  if (!["createdAt", "summary", "priority"].includes(sortBy)) {
-    return res.status(400).json({ message: "sortBy must be createdAt, summary, or priority" });
+  if (!["createdAt", "updatedAt", "summary", "priority"].includes(sortBy)) {
+    return res.status(400).json({ message: "sortBy must be createdAt, updatedAt, summary, or priority" });
   }
 
   if (sortOrder !== "asc" && sortOrder !== "desc") {
@@ -540,9 +561,11 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
           }
         : {}),
       ...(status ? { currentStatus: status } : {}),
+      ...(openText === "1" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] } } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
       ...(priorityText ? { priority: priorityValues[priorityText] } : {}),
+      ...(recentText === "1" ? recentUpdatedFilter() : {}),
     };
 
     const direction: Prisma.SortOrder = sortOrder;
@@ -551,6 +574,8 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
         ? { summary: direction }
         : sortBy === "priority"
           ? { priority: direction }
+        : sortBy === "updatedAt"
+          ? { updatedAt: direction }
           : { createdAt: direction };
 
     const [tickets, totalItems] = await Promise.all([
@@ -591,24 +616,27 @@ app.get("/api/tickets", requireAuth, requireRole("REQUESTER"), requirePasswordUp
 // Issue #33 — the shared IT Staff queue is deliberately independent of the
 // Requester profile.  Staff identity comes solely from the signed-in session;
 // it never accepts a client-supplied requester or staff id as authority.
-app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const search = queryString(req.query.search);
   const categoryIdText = queryString(req.query.categoryId);
   const relatedSystemIdText = queryString(req.query.relatedSystemId);
   const itPriorityText = queryString(req.query.itPriority);
   const status = queryString(req.query.status);
   const ownerIdText = queryString(req.query.ownerId);
+  const actionAssigneeIdText = queryString(req.query.actionAssigneeId);
+  const openText = queryString(req.query.open);
+  const recentText = queryString(req.query.recent);
   const sortBy = queryString(req.query.sortBy) ?? "createdAt";
   const sortDir = queryString(req.query.sortDir) ?? "desc";
   const pageText = queryString(req.query.page);
   const pageSizeText = queryString(req.query.pageSize);
   const categoryId = categoryIdText ? queryPositiveInteger(categoryIdText) : undefined;
   const relatedSystemId = relatedSystemIdText ? queryPositiveInteger(relatedSystemIdText) : undefined;
-  const ownerId = ownerIdText === "0" ? 0 : ownerIdText ? queryPositiveInteger(ownerIdText) : undefined;
+  const ownerId = ownerIdText === "0" || ownerIdText === "unassigned" ? 0 : ownerIdText === "me" ? req.auth!.user.id : ownerIdText ? queryPositiveInteger(ownerIdText) : undefined;
   const page = pageText ? queryPositiveInteger(pageText) : 1;
   const pageSize = pageSizeText ? queryPositiveInteger(pageSizeText) : 20;
 
-  if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || !page || !pageSize || pageSize > 50) {
+  if ((categoryIdText && !categoryId) || (relatedSystemIdText && !relatedSystemId) || (ownerIdText && ownerId === undefined) || (actionAssigneeIdText !== undefined && actionAssigneeIdText !== "me") || (openText !== undefined && openText !== "1") || (recentText !== undefined && recentText !== "1") || !page || !pageSize || pageSize > 50) {
     return res.status(400).json({ message: "Pagination and filters must use valid positive integers (ownerId 0 means unassigned)" });
   }
   if (itPriorityText && !(itPriorityText in itPriorityValues)) {
@@ -633,6 +661,9 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
       ...(itPriorityText ? { itPriority: itPriorityValues[itPriorityText] } : {}),
       ...(status ? { currentStatus: status } : {}),
       ...(ownerId === 0 ? { assignedStaffId: null } : ownerId ? { assignedStaffId: ownerId } : {}),
+      ...(openText === "1" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] } } : {}),
+      ...(recentText === "1" ? recentUpdatedFilter() : {}),
+      ...(actionAssigneeIdText === "me" ? { currentStatus: { in: [...OPEN_TICKET_STATUSES] }, actionsTaken: { some: { assigneeId: req.auth!.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } } : {}),
     };
     const direction: Prisma.SortOrder = sortDir as Prisma.SortOrder;
     const orderBy: Prisma.TicketOrderByWithRelationInput =
@@ -671,10 +702,10 @@ app.get("/api/staff/tickets", requireAuth, requireRole("IT_STAFF"), requirePassw
 // A detail screen needs a safe, canonical list of people who may own a ticket.
 // It is deliberately an IT Staff-only lookup and exposes only the fields needed
 // to make an assignment; it must appear before the :ticketId route below.
-app.get("/api/staff/assignable-users", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (_req: AuthenticatedRequest, res: Response) => {
+app.get("/api/staff/assignable-users", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const users = await getPrisma().user.findMany({
-      where: { role: "IT_STAFF", isActive: true },
+      where: { role: { in: ["IT_STAFF", "ADMINISTRATOR"] }, isActive: true },
       select: { id: true, name: true, email: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
@@ -686,7 +717,7 @@ app.get("/api/staff/assignable-users", requireAuth, requireRole("IT_STAFF"), req
 
 // Issue #34 — operational ticket actions are scoped to authenticated IT Staff.
 // The browser never chooses the claiming identity; it is always req.auth.user.
-app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
 
@@ -704,12 +735,14 @@ app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), re
         },
         comments: { include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         internalNotes: { include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        actionsTaken: { select: { status: true } },
       },
     });
     if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
 
     return res.status(200).json({
       id: ticket.id,
+      version: ticket.version,
       ticketNumber: ticket.ticketNumber,
       requester: ticket.requester,
       category: ticket.category,
@@ -722,6 +755,8 @@ app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), re
       owner: ticket.assignedStaff,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
+      allowedTransitions: allowedTransitions(ticket.currentStatus),
+      resolutionGate: resolutionGate(ticket.assignedStaffId, ticket.actionsTaken),
       attachments: ticket.attachments.map(attachmentResponse),
       publicComments: ticket.comments.map((comment) => ({ id: comment.id, ticketId: comment.ticketId, author: comment.author, content: comment.body, createdAt: comment.createdAt })),
       internalNotes: ticket.internalNotes.map((note) => ({ id: note.id, ticketId: note.ticketId, author: note.author, content: note.body, createdAt: note.createdAt })),
@@ -731,94 +766,178 @@ app.get("/api/staff/tickets/:ticketId", requireAuth, requireRole("IT_STAFF"), re
   }
 });
 
-app.post("/api/staff/tickets/:ticketId/claim", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.post("/api/staff/tickets/:ticketId/claim", requireSameOrigin, requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
+  const version = req.body?.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
 
   try {
     const prisma = getPrisma();
-    const result = await prisma.ticket.updateMany({ where: { id: ticketId, assignedStaffId: null }, data: { assignedStaffId: req.auth!.user.id } });
+    const result = await prisma.ticket.updateMany({ where: { id: ticketId, assignedStaffId: null, version }, data: { assignedStaffId: req.auth!.user.id, version: { increment: 1 } } });
     if (result.count === 1) {
       const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
-      return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+      return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
     }
 
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
     if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-    if (ticket.assignedStaffId === req.auth!.user.id) return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    if (ticket.version !== version) return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: ticket.version });
+    if (ticket.assignedStaffId === req.auth!.user.id) return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
     return res.status(409).json({ message: "Ticket is already claimed by another staff member" });
   } catch {
     return res.status(500).json({ message: "Unable to claim ticket" });
   }
 });
 
-app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.patch("/api/staff/tickets/:ticketId/owner", requireSameOrigin, requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   const ownerId = req.body?.ownerId;
+  const version = req.body?.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
   if (ownerId !== null && !positiveInteger(ownerId)) return res.status(400).json({ message: "ownerId must be an active IT Staff id or null" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
 
   try {
     const prisma = getPrisma();
+    // BR-14 requires body validation (400) before ticket lookup/staleness.
+    // Keep this early check, then repeat it under the ticket lock before the
+    // write so a concurrent account change cannot make an invalid owner stick.
     if (ownerId !== null) {
       const owner = await prisma.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
-      if (!owner || !owner.isActive || owner.role !== "IT_STAFF") {
-        return res.status(400).json({ message: "ownerId must identify an active IT Staff user" });
+      if (!owner || !owner.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(owner.role)) {
+        return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
       }
     }
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string; version: number }>>(
+        Prisma.sql`SELECT "id", "currentStatus", "version" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`,
+      );
+      const ticket = locked[0];
+      if (!ticket) return { kind: "missing" as const };
+      if (ticket.version !== version) return { kind: "stale" as const, currentVersion: ticket.version };
+      // Resolved tickets and their terminal Closed successors retain an owner.
+      // Reopen before unassigning so no completed workflow loses accountability.
+      if (ownerId === null && ["Resolved", "Closed"].includes(ticket.currentStatus)) return { kind: "ownerRequired" as const };
 
-    const ticket = await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { assignedStaffId: ownerId },
-      include: { assignedStaff: { select: { id: true, name: true } } },
-    }).catch((error: unknown) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return null;
-      throw error;
+      if (ownerId !== null) {
+        const owner = await tx.user.findUnique({ where: { id: ownerId }, select: { role: true, isActive: true } });
+        if (!owner || !owner.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(owner.role)) return { kind: "invalidOwner" as const };
+      }
+
+      const update = await tx.ticket.updateMany({ where: { id: ticketId, version }, data: { assignedStaffId: ownerId, version: { increment: 1 } } });
+      if (update.count !== 1) {
+        const current = await tx.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        return { kind: "stale" as const, currentVersion: current?.version ?? version };
+      }
+      return { kind: "updated" as const };
     });
-    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-    return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, updatedAt: ticket.updatedAt });
+    if (outcome.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
+    if (outcome.kind === "stale") return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
+    if (outcome.kind === "invalidOwner") return res.status(400).json({ message: "ownerId must identify an active IT Staff or Administrator user" });
+    if (outcome.kind === "ownerRequired") return res.status(409).json({ error: "Reopen the ticket before removing its owner.", code: "RESOLUTION_GATE", unmet: ["NO_OWNER"] });
+    const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { assignedStaff: { select: { id: true, name: true } } } });
+    return res.status(200).json({ id: ticket.id, owner: ticket.assignedStaff, version: ticket.version, updatedAt: ticket.updatedAt });
   } catch {
     return res.status(500).json({ message: "Unable to update ticket owner" });
   }
 });
 
-app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId);
   const body = req.body ?? {};
   const hasItPriority = Object.prototype.hasOwnProperty.call(body, "itPriority");
-  const hasStatus = Object.prototype.hasOwnProperty.call(body, "status");
   const itPriority = body.itPriority;
-  const status = body.status;
+  const version = body.version;
   if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
-  if (!hasItPriority && !hasStatus) return res.status(400).json({ message: "Provide itPriority, status, or both" });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
+  if (Object.prototype.hasOwnProperty.call(body, "status") || Object.prototype.hasOwnProperty.call(body, "confirm")) {
+    return res.status(400).json({ error: "Validation failed.", errors: {
+      ...(Object.prototype.hasOwnProperty.call(body, "status") ? { status: "Use the dedicated status endpoint." } : {}),
+      ...(Object.prototype.hasOwnProperty.call(body, "confirm") ? { confirm: "Confirmation belongs to the dedicated status endpoint." } : {}),
+    } });
+  }
+  if (!hasItPriority) return res.status(400).json({ message: "Provide itPriority." });
   if (hasItPriority && (typeof itPriority !== "string" || !(itPriority in itPriorityValues))) {
     return res.status(400).json({ message: "itPriority must be Low, Medium, High, or Urgent" });
-  }
-  if (hasStatus && !isTicketStatus(status)) return res.status(400).json({ message: "status is not valid" });
-  if (hasStatus && confirmationRequiredStatuses.has(status) && body.confirm !== true) {
-    return res.status(400).json({ message: `Changing a ticket to ${status} requires confirm: true` });
   }
 
   try {
     const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, version: true } });
     if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
-    if (hasStatus && !allowedStaffTransitions[ticket.currentStatus as (typeof ticketStatuses)[number]]?.includes(status)) {
-      return res.status(409).json({ message: `Cannot transition from ${ticket.currentStatus} to ${status}` });
-    }
 
     const update = await prisma.ticket.updateMany({
-      where: { id: ticketId, ...(hasStatus ? { currentStatus: ticket.currentStatus } : {}) },
+      where: { id: ticketId, version },
       data: {
-        ...(hasItPriority ? { itPriority: itPriorityValues[itPriority] } : {}),
-        ...(hasStatus ? { currentStatus: status } : {}),
+        itPriority: itPriorityValues[itPriority],
+        version: { increment: 1 },
       },
     });
-    if (update.count !== 1) return res.status(409).json({ message: "Ticket workflow was changed by another request; refresh and try again" });
-    const updatedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, itPriority: true, currentStatus: true, updatedAt: true } });
-    return res.status(200).json({ id: updatedTicket.id, itPriority: formatPriority(updatedTicket.itPriority), status: updatedTicket.currentStatus, updatedAt: updatedTicket.updatedAt });
+    if (update.count !== 1) { const current = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true } }); return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: current?.version ?? version }); }
+    const updatedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, itPriority: true, currentStatus: true, version: true, updatedAt: true } });
+    return res.status(200).json({ id: updatedTicket.id, itPriority: formatPriority(updatedTicket.itPriority), status: updatedTicket.currentStatus, version: updatedTicket.version, updatedAt: updatedTicket.updatedAt });
   } catch {
     return res.status(500).json({ message: "Unable to update ticket workflow" });
+  }
+});
+
+// Lab 4, Issue #61 — status changes are deliberately separate from IT-priority
+// edits. The Ticket row remains locked while the transition matrix and the
+// resolution gate are evaluated, so an Action Taken write cannot slip between
+// the gate check and a successful transition to Resolved.
+app.patch("/api/staff/tickets/:ticketId/status", requireSameOrigin, requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const targetStatus = req.body?.currentStatus;
+  const version = req.body?.version;
+  if (!positiveInteger(ticketId)) return res.status(400).json({ error: "Validation failed.", errors: { ticketId: "A valid ticket id is required." } });
+  if (!positiveInteger(version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
+  if (!isTicketStatus(targetStatus)) return res.status(400).json({ error: "Validation failed.", errors: { currentStatus: "A valid ticket status is required." } });
+  if (confirmationRequiredStatuses.has(targetStatus) && req.body?.confirm !== true) {
+    return res.status(400).json({ error: "Validation failed.", errors: { confirm: `Changing a ticket to ${targetStatus} requires confirm: true.` } });
+  }
+
+  try {
+    const outcome = await getPrisma().$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string; assignedStaffId: number | null; version: number }>>(
+        Prisma.sql`SELECT "id", "currentStatus", "assignedStaffId", "version" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`,
+      );
+      const ticket = locked[0];
+      if (!ticket) return { kind: "missing" as const };
+      if (ticket.version !== version) return { kind: "stale" as const, currentVersion: ticket.version };
+      if (!allowedTransitions(ticket.currentStatus).includes(targetStatus)) {
+        return { kind: "illegal" as const, currentStatus: ticket.currentStatus };
+      }
+
+      const actions = await tx.actionTaken.findMany({ where: { ticketId }, select: { status: true } });
+      const gate = resolutionGate(ticket.assignedStaffId, actions);
+      if (targetStatus === "Resolved" && !gate.ok) return { kind: "gate" as const, gate };
+
+      const update = await tx.ticket.updateMany({
+        where: { id: ticketId, version },
+        data: { currentStatus: targetStatus, version: { increment: 1 } },
+      });
+      if (update.count !== 1) {
+        const current = await tx.ticket.findUnique({ where: { id: ticketId }, select: { version: true } });
+        return { kind: "stale" as const, currentVersion: current?.version ?? version };
+      }
+      const updated = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+      return { kind: "updated" as const, ticket: updated, actions };
+    });
+
+    if (outcome.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
+    if (outcome.kind === "stale") return res.status(409).json({ error: "This ticket was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
+    if (outcome.kind === "illegal") return res.status(409).json({ error: `Cannot transition from ${outcome.currentStatus} to ${targetStatus}.`, code: "ILLEGAL_TRANSITION" });
+    if (outcome.kind === "gate") return res.status(409).json({ error: "The resolution conditions are not met.", code: "RESOLUTION_GATE", unmet: outcome.gate.unmet });
+    return res.status(200).json({ ticket: {
+      id: outcome.ticket.id,
+      status: outcome.ticket.currentStatus,
+      version: outcome.ticket.version,
+      allowedTransitions: allowedTransitions(outcome.ticket.currentStatus),
+      resolutionGate: resolutionGate(outcome.ticket.assignedStaffId, outcome.actions),
+    } });
+  } catch {
+    return res.status(500).json({ message: "Unable to update ticket status" });
   }
 });
 
@@ -826,6 +945,277 @@ app.patch("/api/staff/tickets/:ticketId/workflow", requireSameOrigin, requireAut
 // Requesters may access only their own ticket; IT Staff can access the shared
 // queue.  Internal notes never pass through a Requester response path.
 const communicationLimit = 2000;
+
+// Lab 4, Issue #58 — Actions Taken use a separate, append-only work log. A
+// Requester may read current actions for their own ticket only; Staff and
+// Administrators share the operational view. Writes are handled below and
+// always derive the performer from the session rather than the request body.
+const actionTextLimit = 2000;
+const actionCreateStatuses = new Set<ActionStatus>([
+  ActionStatus.PLANNED,
+  ActionStatus.IN_PROGRESS,
+  ActionStatus.COMPLETED,
+]);
+const actionStatuses = new Set<ActionStatus>(Object.values(ActionStatus));
+const openActionStatuses = new Set<ActionStatus>([ActionStatus.PLANNED, ActionStatus.IN_PROGRESS]);
+const finalActionStatuses = new Set<ActionStatus>([ActionStatus.COMPLETED, ActionStatus.CANCELLED]);
+
+function actionResponse(action: {
+  id: number; ticketId: number; performedById: number; assigneeId: number | null;
+  status: ActionStatus; actionAt: Date; description: string; result: string;
+  followUpRequired: boolean; followUpNote: string; attachmentNotes: string;
+  version: number; createdAt: Date; updatedAt: Date;
+  performedBy: { id: number; name: string }; assignee: { id: number; name: string } | null;
+}) {
+  return {
+    id: action.id, ticketId: action.ticketId, performedBy: action.performedBy,
+    assignee: action.assignee, status: action.status, actionAt: action.actionAt,
+    description: action.description, result: action.result,
+    followUpRequired: action.followUpRequired, followUpNote: action.followUpNote,
+    attachmentNotes: action.attachmentNotes, version: action.version,
+    createdAt: action.createdAt, updatedAt: action.updatedAt,
+  };
+}
+
+function optionalActionText(value: unknown, field: string, errors: Record<string, string>) {
+  if (value === undefined) return "";
+  if (typeof value !== "string") { errors[field] = "Must be text."; return ""; }
+  const text = value.trim();
+  if (text.length > actionTextLimit) errors[field] = `Must not exceed ${actionTextLimit} characters.`;
+  return text;
+}
+
+function actionCreateBody(body: unknown): { value?: {
+  description: string; result: string; followUpRequired: boolean; followUpNote: string;
+  attachmentNotes: string; actionAt: Date; status: ActionStatus; assigneeId: number | null;
+}; errors: Record<string, string> } {
+  const source = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const errors: Record<string, string> = {};
+  const description = typeof source.description === "string" ? source.description.trim() : "";
+  if (!description) errors.description = "Description is required.";
+  else if (description.length > actionTextLimit) errors.description = `Must not exceed ${actionTextLimit} characters.`;
+  const result = optionalActionText(source.result, "result", errors);
+  const attachmentNotes = optionalActionText(source.attachmentNotes, "attachmentNotes", errors);
+  const rawFollowUpRequired = source.followUpRequired;
+  if (rawFollowUpRequired !== undefined && typeof rawFollowUpRequired !== "boolean") errors.followUpRequired = "Must be true or false.";
+  const followUpRequired = rawFollowUpRequired === true;
+  const followUpNote = optionalActionText(source.followUpNote, "followUpNote", errors);
+  if (followUpRequired === true && !followUpNote) errors.followUpNote = "A follow-up note is required when follow-up is required.";
+  const status = source.status === undefined ? ActionStatus.PLANNED : source.status;
+  if (!actionCreateStatuses.has(status as ActionStatus)) errors.status = "Create accepts PLANNED, IN_PROGRESS, or COMPLETED.";
+  if (status === ActionStatus.COMPLETED && !result) errors.result = "A result is required for a completed action.";
+  const actionAt = source.actionAt === undefined ? new Date() : typeof source.actionAt === "string" ? new Date(source.actionAt) : new Date("");
+  if (Number.isNaN(actionAt.getTime())) errors.actionAt = "Must be a valid ISO date-time.";
+  else if (actionAt.getTime() > Date.now() + 5 * 60_000) errors.actionAt = "Cannot be more than five minutes in the future.";
+  const assigneeId = source.assigneeId === undefined || source.assigneeId === null ? null : source.assigneeId;
+  if (assigneeId !== null && !positiveInteger(assigneeId)) errors.assigneeId = "Must be an active IT Staff or Administrator id, or null.";
+  if (Object.keys(errors).length) return { errors };
+  return { value: { description, result, followUpRequired, followUpNote, attachmentNotes, actionAt, status: status as ActionStatus, assigneeId: assigneeId as number | null }, errors };
+}
+
+type EditableAction = {
+  status: ActionStatus; assigneeId: number | null; actionAt: Date; description: string;
+  result: string; followUpRequired: boolean; followUpNote: string; attachmentNotes: string;
+};
+
+// Patch validation starts with the stored values. This makes omitted fields stay
+// unchanged while still applying the cross-field rules to the resulting action.
+function actionEditBody(body: unknown, stored: EditableAction): { value?: EditableAction; errors: Record<string, string> } {
+  const source = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const errors: Record<string, string> = {};
+  const value: EditableAction = {
+    status: stored.status, assigneeId: stored.assigneeId, actionAt: stored.actionAt,
+    description: stored.description, result: stored.result,
+    followUpRequired: stored.followUpRequired, followUpNote: stored.followUpNote,
+    attachmentNotes: stored.attachmentNotes,
+  };
+
+  const text = (field: "description" | "result" | "followUpNote" | "attachmentNotes", required: boolean) => {
+    if (source[field] === undefined) return;
+    if (typeof source[field] !== "string") { errors[field] = "Must be text."; return; }
+    const trimmed = source[field].trim();
+    if (required && !trimmed) errors[field] = "Description is required.";
+    else if (trimmed.length > actionTextLimit) errors[field] = `Must not exceed ${actionTextLimit} characters.`;
+    else value[field] = trimmed;
+  };
+  text("description", true);
+  text("result", false);
+  text("followUpNote", false);
+  text("attachmentNotes", false);
+
+  if (source.followUpRequired !== undefined) {
+    if (typeof source.followUpRequired !== "boolean") errors.followUpRequired = "Must be true or false.";
+    else value.followUpRequired = source.followUpRequired;
+  }
+  if (source.status !== undefined) {
+    if (!actionStatuses.has(source.status as ActionStatus)) errors.status = "Must be PLANNED, IN_PROGRESS, COMPLETED, or CANCELLED.";
+    else value.status = source.status as ActionStatus;
+  }
+  if (source.assigneeId !== undefined) {
+    if (source.assigneeId !== null && !positiveInteger(source.assigneeId)) errors.assigneeId = "Must be an active IT Staff or Administrator id, or null.";
+    else value.assigneeId = source.assigneeId as number | null;
+  }
+  if (source.actionAt !== undefined) {
+    const actionAt = typeof source.actionAt === "string" ? new Date(source.actionAt) : new Date("");
+    if (Number.isNaN(actionAt.getTime())) errors.actionAt = "Must be a valid ISO date-time.";
+    else if (actionAt.getTime() > Date.now() + 5 * 60_000) errors.actionAt = "Cannot be more than five minutes in the future.";
+    else value.actionAt = actionAt;
+  }
+  if (value.followUpRequired && !value.followUpNote) errors.followUpNote = "A follow-up note is required when follow-up is required.";
+  if (!value.followUpRequired) value.followUpNote = "";
+  if (value.status === ActionStatus.COMPLETED && !value.result) errors.result = "A result is required for a completed action.";
+  return Object.keys(errors).length ? { errors } : { value, errors };
+}
+
+function actionEditMoveAllowed(from: ActionStatus, to: ActionStatus) {
+  if (from === to) return true;
+  if (from === ActionStatus.PLANNED) return to === ActionStatus.IN_PROGRESS || to === ActionStatus.COMPLETED || to === ActionStatus.CANCELLED;
+  if (from === ActionStatus.IN_PROGRESS) return to === ActionStatus.COMPLETED || to === ActionStatus.CANCELLED;
+  return false;
+}
+
+async function eligibleActionAssignee(assigneeId: number | null) {
+  if (assigneeId === null) return true;
+  const assignee = await getPrisma().user.findUnique({ where: { id: assigneeId }, select: { role: true, isActive: true } });
+  return !!assignee && assignee.isActive && ["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role);
+}
+
+async function requesterOwnsTicket(req: AuthenticatedRequest, ticketId: number) {
+  const requesterId = await authenticatedRequesterId(req);
+  return !!requesterId && !!(await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } }));
+}
+
+app.get("/api/tickets/:ticketId/actions", requireAuth, requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  const role = req.auth!.user.role;
+  if (role !== "REQUESTER" && role !== "IT_STAFF" && role !== "ADMINISTRATOR") return authError(res, 403, "FORBIDDEN", "You do not have permission to view actions.");
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+    if (!ticket) return res.status(404).json({ message: "Ticket was not found" });
+    if (role === "REQUESTER" && !(await requesterOwnsTicket(req, ticketId))) return res.status(404).json({ message: "Ticket was not found" });
+    const actions = await prisma.actionTaken.findMany({
+      where: { ticketId },
+      include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      orderBy: [{ actionAt: "asc" }, { id: "asc" }],
+    });
+    return res.status(200).json({ actions: actions.map(actionResponse) });
+  } catch { return res.status(500).json({ message: "Unable to load actions." }); }
+});
+
+app.post("/api/tickets/:ticketId/actions", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireSameOrigin, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  if (!positiveInteger(ticketId)) return res.status(400).json({ message: "A valid ticket id is required" });
+  const parsed = actionCreateBody(req.body);
+  if (!parsed.value) return res.status(400).json({ error: "Validation failed.", errors: parsed.errors });
+  try {
+    const prisma = getPrisma();
+    if (!(await eligibleActionAssignee(parsed.value.assigneeId))) {
+        return res.status(400).json({ error: "Validation failed.", errors: { assigneeId: "Must identify an active IT Staff or Administrator." } });
+    }
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string }>>(Prisma.sql`SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+      const ticket = locked[0];
+      if (!ticket) return { kind: "missing" as const };
+      if (ticket.currentStatus === "Closed" || ticket.currentStatus === "Cancelled") return { kind: "closed" as const };
+      if (ticket.currentStatus === "Resolved" && parsed.value!.status !== ActionStatus.COMPLETED) return { kind: "resolved" as const };
+      const action = await tx.actionTaken.create({
+        data: { ticketId, performedById: req.auth!.user.id, ...parsed.value! },
+        include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      });
+      await tx.actionTakenRevision.create({
+        data: {
+          actionTakenId: action.id, revision: 1, editedById: req.auth!.user.id, editedAt: action.createdAt,
+          status: action.status, assigneeId: action.assigneeId, actionAt: action.actionAt,
+          description: action.description, result: action.result, followUpRequired: action.followUpRequired,
+          followUpNote: action.followUpNote, attachmentNotes: action.attachmentNotes,
+        },
+      });
+      return { kind: "created" as const, action };
+    });
+    if (result.kind === "missing") return res.status(404).json({ message: "Ticket was not found" });
+    if (result.kind === "closed") return res.status(409).json({ error: "Actions cannot be changed on a closed or cancelled ticket.", code: "TICKET_CLOSED" });
+    if (result.kind === "resolved") return res.status(409).json({ error: "Reopen the ticket before adding open work.", code: "TICKET_RESOLVED" });
+    return res.status(201).json(actionResponse(result.action));
+  } catch { return res.status(500).json({ message: "Unable to create action." }); }
+});
+
+// Issue #59 — Action Taken edits are optimistic (versioned), append a
+// revision atomically, and never modify a final action.
+app.patch("/api/tickets/:ticketId/actions/:actionId", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireSameOrigin, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const actionId = Number(req.params.actionId);
+  if (!positiveInteger(ticketId) || !positiveInteger(actionId)) return res.status(400).json({ error: "Validation failed.", errors: { id: "A valid ticket and action id are required." } });
+  const source = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+  if (!positiveInteger(source.version)) return res.status(400).json({ error: "Validation failed.", errors: { version: "A current integer version is required." } });
+
+  try {
+    const prisma = getPrisma();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: string }>>(Prisma.sql`SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+      const ticket = locked[0];
+      if (!ticket) return { kind: "ticketMissing" as const };
+      const stored = await tx.actionTaken.findFirst({ where: { id: actionId, ticketId } });
+      if (!stored) return { kind: "actionMissing" as const };
+      if (ticket.currentStatus === "Closed" || ticket.currentStatus === "Cancelled") return { kind: "closed" as const };
+      if (finalActionStatuses.has(stored.status)) return { kind: "final" as const };
+      if (stored.version !== source.version) return { kind: "stale" as const, currentVersion: stored.version };
+
+      const parsed = actionEditBody(source, stored);
+      if (!parsed.value) return { kind: "invalid" as const, errors: parsed.errors };
+      if (!actionEditMoveAllowed(stored.status, parsed.value.status)) return { kind: "invalid" as const, errors: { status: `Cannot move an action from ${stored.status} to ${parsed.value.status}.` } };
+      if (ticket.currentStatus === "Resolved" && openActionStatuses.has(parsed.value.status)) return { kind: "resolved" as const };
+      // An existing action may legitimately remain assigned to a former staff
+      // member. Only validate assignee eligibility when this PATCH actually
+      // changes (or explicitly re-sends) assigneeId.
+      if (source.assigneeId !== undefined && !(await eligibleActionAssignee(parsed.value.assigneeId))) {
+        return { kind: "invalid" as const, errors: { assigneeId: "Must identify an active IT Staff or Administrator." } };
+      }
+
+      const update = await tx.actionTaken.updateMany({
+        where: { id: actionId, ticketId, version: stored.version },
+        data: { ...parsed.value, version: { increment: 1 } },
+      });
+      if (update.count !== 1) return { kind: "stale" as const, currentVersion: stored.version };
+      await tx.actionTakenRevision.create({ data: { actionTakenId: actionId, revision: stored.version + 1, editedById: req.auth!.user.id, ...parsed.value } });
+      const action = await tx.actionTaken.findUniqueOrThrow({
+        where: { id: actionId },
+        include: { performedBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } },
+      });
+      return { kind: "updated" as const, action };
+    });
+    if (outcome.kind === "ticketMissing") return res.status(404).json({ message: "Ticket was not found" });
+    if (outcome.kind === "actionMissing") return res.status(404).json({ message: "Action was not found" });
+    if (outcome.kind === "closed") return res.status(409).json({ error: "Actions cannot be changed on a closed or cancelled ticket.", code: "TICKET_CLOSED" });
+    if (outcome.kind === "final") return res.status(409).json({ error: "Completed or cancelled actions cannot be edited.", code: "ACTION_FINAL" });
+    if (outcome.kind === "stale") return res.status(409).json({ error: "This action was changed by another request; refresh and try again.", code: "STALE_VERSION", currentVersion: outcome.currentVersion });
+    if (outcome.kind === "resolved") return res.status(409).json({ error: "Reopen the ticket before adding open work.", code: "TICKET_RESOLVED" });
+    if (outcome.kind === "invalid") return res.status(400).json({ error: "Validation failed.", errors: outcome.errors });
+    return res.status(200).json(actionResponse(outcome.action));
+  } catch { return res.status(500).json({ message: "Unable to update action." }); }
+});
+
+app.get("/api/tickets/:ticketId/actions/:actionId/revisions", requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+  const ticketId = Number(req.params.ticketId);
+  const actionId = Number(req.params.actionId);
+  if (!positiveInteger(ticketId) || !positiveInteger(actionId)) return res.status(400).json({ message: "A valid ticket and action id are required" });
+  try {
+    const prisma = getPrisma();
+    const action = await prisma.actionTaken.findFirst({ where: { id: actionId, ticketId }, select: { id: true } });
+    if (!action) return res.status(404).json({ message: "Action was not found" });
+    const revisions = await prisma.actionTakenRevision.findMany({
+      where: { actionTakenId: actionId }, include: { editedBy: { select: { id: true, name: true } } }, orderBy: { revision: "asc" },
+    });
+    return res.status(200).json({ revisions: revisions.map((revision) => ({
+      revision: revision.revision, editedBy: revision.editedBy, editedAt: revision.editedAt,
+      status: revision.status, assigneeId: revision.assigneeId, actionAt: revision.actionAt,
+      description: revision.description, result: revision.result, followUpRequired: revision.followUpRequired,
+      followUpNote: revision.followUpNote, attachmentNotes: revision.attachmentNotes,
+    })) });
+  } catch { return res.status(500).json({ message: "Unable to load action history." }); }
+});
+
 async function canAccessTicketCommunication(req: AuthenticatedRequest, ticketId: number, allowRequester: boolean) {
   const role = req.auth!.user.role;
   if (role === "IT_STAFF" || role === "ADMINISTRATOR") return true;
@@ -860,7 +1250,7 @@ app.post("/api/tickets/:ticketId/comments", requireSameOrigin, requireAuth, requ
   try {
     const prisma = getPrisma();
     if (!(await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }))) return res.status(404).json({ message: "Ticket was not found" });
-    if (req.auth!.user.role === "ADMINISTRATOR" || !(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "You do not have permission to post this comment.");
+    if (!(await canAccessTicketCommunication(req, ticketId, true))) return authError(res, req.auth!.user.role === "REQUESTER" ? 404 : 403, "FORBIDDEN", "You do not have permission to post this comment.");
     const comment = await prisma.ticketComment.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } });
     return res.status(201).json(communicationResponse(comment));
   } catch { return res.status(500).json({ message: "Unable to post comment" }); }
@@ -872,7 +1262,7 @@ app.get("/api/tickets/:ticketId/notes", requireAuth, requireRole("IT_STAFF", "AD
   try { const prisma = getPrisma(); const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }); if (!ticket) return res.status(404).json({ message: "Ticket was not found" }); const notes = await prisma.internalNote.findMany({ where: { ticketId }, include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }); return res.status(200).json(notes.map(communicationResponse)); } catch { return res.status(500).json({ message: "Unable to load notes" }); }
 });
 
-app.post("/api/tickets/:ticketId/notes", requireSameOrigin, requireAuth, requireRole("IT_STAFF"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
+app.post("/api/tickets/:ticketId/notes", requireSameOrigin, requireAuth, requireRole("IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, requireCsrf, async (req: AuthenticatedRequest, res: Response) => {
   const ticketId = Number(req.params.ticketId); const content = communicationBody(req.body?.content);
   if (!positiveInteger(ticketId) || !content) return res.status(400).json({ message: "Note content must be 1 to 2000 characters." });
   try { const prisma = getPrisma(); const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } }); if (!ticket) return res.status(404).json({ message: "Ticket was not found" }); const note = await prisma.internalNote.create({ data: { ticketId, authorId: req.auth!.user.id, body: content }, include: { author: { select: { id: true, name: true } } } }); return res.status(201).json(communicationResponse(note)); } catch { return res.status(500).json({ message: "Unable to post note" }); }
@@ -912,6 +1302,7 @@ app.get("/api/tickets/:ticketId", requireAuth, requireRole("REQUESTER"), require
 
     return res.status(200).json({
       id: ticket.id,
+      version: ticket.version,
       ticketNumber: ticket.ticketNumber,
       requester: ticket.requester,
       category: ticket.category,
@@ -1066,9 +1457,10 @@ app.post("/api/tickets/:ticketId/attachments", requireSameOrigin, requireAuth, r
   }
 });
 
-app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER", "IT_STAFF"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
+app.get("/api/attachments/:attachmentId/download", requireAuth, requireRole("REQUESTER", "IT_STAFF", "ADMINISTRATOR"), requirePasswordUpToDate, async (req: AuthenticatedRequest, res: Response) => {
   // Requesters remain scoped to their own tickets. IT Staff, who work from
   // the shared queue, may download an active attachment from any ticket.
+  // Administrators have the same shared-ticket read access in Lab 4.
   const isRequester = req.auth!.user.role === "REQUESTER";
   const requesterId = isRequester ? await authenticatedRequesterId(req) : undefined;
   const attachmentId = Number(req.params.attachmentId);

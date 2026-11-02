@@ -17,6 +17,8 @@ let owner: RequesterSessionFixture;
 let other: RequesterSessionFixture;
 let staffAgent: request.Agent;
 let staffUserId: number;
+let adminAgent: request.Agent;
+let adminUserId: number;
 let ticketId: number;
 let attachmentId: number;
 
@@ -28,11 +30,18 @@ function upload(ticket: number, file: Buffer, filename: string, contentType: str
 beforeAll(async () => {
   [owner, other] = await Promise.all([createRequesterSession("attachments-owner"), createRequesterSession("attachments-other")]);
   const staffEmail = `attachments-staff-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  const adminEmail = `attachments-admin-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
   const staffPassword = "FixturePass123!";
   const staff = await prisma.user.create({ data: { name: "Attachment staff fixture", email: staffEmail, passwordHash: await hashPassword(staffPassword), role: "IT_STAFF", mustChangePassword: false } });
+  const admin = await prisma.user.create({ data: { name: "Attachment administrator fixture", email: adminEmail, passwordHash: await hashPassword(staffPassword), role: "ADMINISTRATOR", mustChangePassword: false } });
   staffUserId = staff.id;
+  adminUserId = admin.id;
   staffAgent = request.agent(app);
-  await staffAgent.post("/api/auth/login").send({ email: staffEmail, password: staffPassword }).expect(200);
+  adminAgent = request.agent(app);
+  await Promise.all([
+    staffAgent.post("/api/auth/login").send({ email: staffEmail, password: staffPassword }).expect(200),
+    adminAgent.post("/api/auth/login").send({ email: adminEmail, password: staffPassword }).expect(200),
+  ]);
   const [category, relatedSystem] = await Promise.all([prisma.category.findFirstOrThrow({ where: { isActive: true } }), prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } })]);
   const ticket = await prisma.ticket.create({ data: { ticketNumber: `TK-F17-${Date.now()}`, requesterId: owner.requesterId, categoryId: category.id, relatedSystemId: relatedSystem.id, summary: `${marker} ticket detail`, description: "Attachment fixture.", priority: Priority.HIGH, currentStatus: "New" } });
   ticketId = ticket.id;
@@ -46,8 +55,8 @@ afterAll(async () => {
   await prisma.attachment.deleteMany({ where: { ticket: { summary: { startsWith: marker } } } });
   await prisma.ticket.deleteMany({ where: { summary: { startsWith: marker } } });
   for (const attachment of attachments) { try { unlinkSync(path.join(uploadDir, attachment.storedFilename)); } catch { /* cleanup */ } }
-  await prisma.session.deleteMany({ where: { userId: staffUserId } });
-  await prisma.user.delete({ where: { id: staffUserId } });
+  await prisma.session.deleteMany({ where: { userId: { in: [staffUserId, adminUserId] } } });
+  await prisma.user.deleteMany({ where: { id: { in: [staffUserId, adminUserId] } } });
   await Promise.all([removeRequesterSession(owner), removeRequesterSession(other)]);
   await prisma.$disconnect();
 });
@@ -75,6 +84,13 @@ describe("ticket detail and attachments", () => {
   it("allows IT Staff to download an active attachment from the shared queue", async () => {
     const download = await staffAgent.get(`/api/attachments/${attachmentId}/download`);
     expect(download.status).toBe(200);
+    expect(download.text).toBe(fileBytes.toString());
+  });
+
+  it("allows an Administrator to download an active attachment from the shared queue", async () => {
+    const download = await adminAgent.get(`/api/attachments/${attachmentId}/download`);
+    expect(download.status).toBe(200);
+    expect(download.headers["content-type"]).toContain("text/plain");
     expect(download.text).toBe(fileBytes.toString());
   });
 

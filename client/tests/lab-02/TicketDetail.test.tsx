@@ -11,6 +11,7 @@ const requester: api.Requester = {
 
 const ticket: api.TicketDetail = {
   id: 10,
+  version: 1,
   ticketNumber: "TK-000010",
   requester,
   category: { id: 1, name: "Hardware" },
