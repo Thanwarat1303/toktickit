@@ -27,7 +27,7 @@ async function signInAsAdministrator(page: import("@playwright/test").Page) {
     if (nextScreen === "dashboard") return;
     if (nextScreen === "change-password") {
       await page.getByLabel("Current password").fill(password);
-      await page.getByLabel("New password").fill(e2ePassword);
+      await page.getByLabel("New password", { exact: true }).fill(e2ePassword);
       await page.getByLabel("Confirm new password").fill(e2ePassword);
       await page.getByRole("button", { name: "Save new password" }).click();
       await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
