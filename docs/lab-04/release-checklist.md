@@ -75,6 +75,7 @@ The current local verification has been recorded without inflating the release s
 - Server: `npm run build` — passed (`tsc`).
 - Server: `npm test` — 22 files, 104/104 passed after resetting the shared seed credentials and reseeding the development fixture.
 - Server: `npx prisma migrate status` — 8 migrations found; database schema is up to date.
-- Existing Playwright suite: 4/4 passed (Lab 3 authentication smoke flow, desktop and mobile).
+- Playwright suite: 6/6 passed (Lab 3 authentication smoke flow plus the Lab 4 Administrator mobile-navigation regression, across the configured desktop/mobile projects).
 - Lab 4 evidence captured at 1280×900, 768×1024 and 375×812 for Staff/Requester dashboards, Ticket Queue, Staff Ticket Detail, Actions Taken form and Administrator User Management. Tablet and mobile widths were checked from the generated image dimensions; two overflow defects were fixed before capture.
+- Administrator Dashboard, Ticket Queue and User Management were recaptured at 375px after the navigation fix. The regression test checks `document.documentElement.scrollWidth <= window.innerWidth` on all three destinations instead of inferring overflow from image dimensions.
 - The dedicated Lab 4 accessibility/E2E suite is still a release task, not claimed as complete by this log.

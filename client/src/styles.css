@@ -481,6 +481,8 @@ body {
 }
 
 @media (max-width: 767.98px) {
+  .app-nav { flex-wrap: wrap; width: 100%; }
+
   .topbar {
     padding: 0.75rem 0;
   }
