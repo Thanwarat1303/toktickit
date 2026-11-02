@@ -21,3 +21,19 @@ Metric cards have label, number and accessible View link. Staff/Admin show unass
 ## Responsive/accessibility
 
 At 1280, 768 and 375 px, cards reflow, controls retain labels, tables use an accessible responsive layout, and there is no page horizontal overflow, clipped controls or overlap. Keyboard access, visible focus, semantic labels, non-colour cues and WCAG 4.5:1 text contrast are required.
+
+## Evidence recorded
+
+The committed visual evidence is kept in `artifacts/lab-04/screenshots/`:
+
+| Screen | Evidence available |
+|---|---|
+| Staff Dashboard | desktop, tablet, mobile |
+| Requester Dashboard | desktop, tablet, mobile |
+| Ticket Queue | desktop, tablet, mobile |
+| Staff Ticket Detail | desktop, tablet, mobile |
+| Actions Taken add form | desktop, tablet, mobile |
+| User Management | desktop, tablet, mobile |
+| Administrator destinations after navigation fix | mobile Dashboard, Ticket Queue and User Management |
+
+The automated responsive regression covers the Administrator destinations at 375px in both configured Playwright projects. It checks `document.documentElement.scrollWidth <= window.innerWidth`, which is stronger than deciding from image dimensions alone. The screenshot inventory demonstrates the supplied visual states; it is not a substitute for the planned full accessibility and responsive test rows listed in `tests.md`.

@@ -1,223 +1,98 @@
 # TokTickIT
 
-TokTickIT is a simple IT service desk application developed for CPE334 Lab 1.
+TokTickIT is a role-based IT service desk developed for CPE334. Labs 1–3 establish ticket submission, authentication, requester workspaces, IT Staff operations and Administrator user management. Lab 4 adds an auditable Actions Taken log, safe ticket workflow controls and per-role dashboards.
 
-The application can check the system status and display the supported IT request categories from the backend API.
+## Lab 4 deliverables
 
-## Technology Stack
+- **Actions Taken:** IT Staff and Administrators can create and update work records. Every accepted edit appends an immutable revision; Requesters can view actions only on their own tickets.
+- **Safe workflow:** ticket changes use optimistic locking. The resolution gate requires an owner, at least one completed action and no planned/in-progress action before a ticket can be resolved.
+- **Dashboards:** Requester, IT Staff and Administrator dashboards show role-scoped metrics and links to the matching filtered list.
+- **Responsive UI:** Administrator navigation wraps at phone width; the Lab 4 navigation regression checks the three Administrator destinations at 375px.
 
-- Frontend: React, TypeScript, Vite, Bootstrap
-- Backend: Node.js, Express, TypeScript
-- Database: PostgreSQL running in Docker
-- ORM: Prisma
-- Testing: Vitest and Supertest
+The detailed contract and traceability are in [docs/lab-04/specification.md](docs/lab-04/specification.md), [docs/lab-04/api-spec.md](docs/lab-04/api-spec.md), [docs/lab-04/ui-spec.md](docs/lab-04/ui-spec.md) and [docs/lab-04/tests.md](docs/lab-04/tests.md).
 
-## Prerequisites
+## Technology
 
-Install:
+- Client: React, TypeScript, Vite and Bootstrap
+- Server: Node.js, Express and TypeScript
+- Database: PostgreSQL and Prisma
+- Automated tests: Vitest, Supertest and Playwright
 
-- Node.js and npm
-- Docker Desktop
+## Local setup
 
-Start Docker Desktop before running the database.
-
-## Install Dependencies
-
-Install the frontend dependencies:
+1. Start PostgreSQL (the default development port used by this project is `15433`).
+2. Copy `server/.env.example` to `server/.env`, then set `DATABASE_URL` and `CLIENT_ORIGIN`. Do not commit `.env`.
+3. Install dependencies in each package:
 
 ```powershell
-cd client
-npm install
+cd server; npm ci
+cd ..\client; npm ci
+cd ..\e2e; npm ci
 ```
 
-Install the backend dependencies:
+4. Apply migrations and seed deterministic development data:
 
 ```powershell
-cd ../server
-npm install
-```
-
-## Start PostgreSQL
-
-Create the local PostgreSQL container:
-
-```powershell
-docker run --name tocktickit-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=YOUR_LOCAL_POSTGRES_PASSWORD -e POSTGRES_DB=toktickit_lab1 -p 15433:5432 -v tocktickit_postgres_data:/var/lib/postgresql/data -d postgres:17
-```
-
-If the container has already been created and stopped, start it again:
-
-```powershell
-docker start tocktickit-postgres
-```
-
-## Configure the Backend
-
-Copy the example environment file:
-
-```powershell
-cd server
-Copy-Item .env.example .env
-```
-
-Edit `server/.env` and replace `YOUR_LOCAL_POSTGRES_PASSWORD` with your local database password.
-
-Do not commit the `.env` file.
-
-## Database Setup
-
-After PostgreSQL is running and `server/.env` has been configured, run the Prisma migration:
-
-```powershell
-cd server
-npx prisma migrate dev
-```
-
-Seed the database with the IT request categories:
-
-```powershell
-npx prisma db seed
-```
-
-The seeded categories are:
-
-- Account and Access
-- Hardware
-- Software
-- Network
-
-The seed uses Prisma `upsert`, so it can be run more than once without creating duplicate categories.
-
-## Lab 4: Actions Taken migration and seed
-
-Before applying the Lab 4 migration to a database containing real data, create
-a backup. Then run the migration and seed:
-
-```powershell
-cd server
-pg_dump -Fc "$env:DATABASE_URL" -f ..\before-lab4.dump
+cd ..\server
 npx prisma migrate deploy
-npx prisma db seed
+npm run prisma:seed
 ```
 
-The migration is additive: it adds `ActionStatus`, `ActionTaken`,
-`ActionTakenRevision`, and `Ticket.version` (default `1`) without changing
-existing rows. The seed creates deterministic demo tickets `TKT-SEED-001` to
-`TKT-SEED-012` and their Action Taken history; it is safe to run again.
+The seed is idempotent. It creates categories, related systems, role accounts and tickets `TKT-SEED-001` through `TKT-SEED-012`, including Actions Taken data for Lab 4. Seeded accounts use the development initial password configured by `LAB3_INITIAL_PASSWORD` or its documented fallback. They must change it on first sign-in.
 
-To undo a populated production/dev database, restore the backup. The SQL inverse
-documented in the Lab 4 migration is only safe before any Action Taken data has
-been created, because it deliberately drops the new tables.
+## Run the application
 
-## Run the Application
-
-### Backend
-
-Start the backend in one terminal:
+Start the server:
 
 ```powershell
 cd server
 npm run dev
 ```
 
-The API runs at:
-
-```text
-http://localhost:3000
-```
-
-### Frontend
-
-Start the frontend in another terminal:
+Start the client in a second terminal:
 
 ```powershell
 cd client
 npm run dev
 ```
 
-Open the URL shown by Vite, usually:
+Open the Vite URL, normally `http://localhost:5173`.
 
-```text
-http://localhost:5173
-```
+## Verification
 
-Click **Check System** to check the backend status and display the available IT request categories.
-
-## API Endpoints
-
-### Health Check
-
-```text
-GET /api/health
-```
-
-The endpoint returns the TokTickIT API health status.
-
-Example response:
-
-```json
-{
-  "status": "ok",
-  "service": "TokTickIT API"
-}
-```
-
-### Categories
-
-```text
-GET /api/categories
-```
-
-The endpoint reads the categories from PostgreSQL and returns them in ID order.
-
-The supported categories are:
-
-- Account and Access
-- Hardware
-- Software
-- Network
-
-## Run Tests
-
-### Backend Tests
-
-Run:
+Run the configured suites sequentially while the local server and client are available for Playwright:
 
 ```powershell
-cd server
-npm test
+cd server; npm test; npm run build; npx prisma migrate status
+cd ..\client; npm test; npm run build
+cd ..\e2e; npm test
 ```
 
-The backend tests cover:
+Post-merge verification on `main` commit `e211b14` (2026-11-02):
 
-- `GET /api/health`
-- `GET /api/categories`
+| Check | Result |
+|---|---|
+| Server Vitest | 22 files, 104/104 passed |
+| Client Vitest | 10 files, 37/37 passed |
+| Playwright | 6/6 passed |
+| Server/client builds | passed |
+| Prisma migration status | 8 migrations; schema up to date |
 
-### Frontend Tests
+The Playwright suite includes the fresh-seed first-password-change flow and the 375px Administrator navigation-overflow regression. See [docs/lab-04/release-checklist.md](docs/lab-04/release-checklist.md) for the full verification record and [artifacts/lab-04/screenshots](artifacts/lab-04/screenshots) for visual evidence.
 
-Run:
+## Lab 4 evidence map
 
-```powershell
-cd client
-npm test
-```
+| Evidence | Location |
+|---|---|
+| Engineering contract | `docs/lab-04/specification.md` |
+| API contract | `docs/lab-04/api-spec.md` |
+| UI contract and screenshot checklist | `docs/lab-04/ui-spec.md` |
+| Tests and traceability | `docs/lab-04/tests.md` |
+| Release verification | `docs/lab-04/release-checklist.md` |
+| Review history | `docs/lab-04/reviewer.md` |
+| AI-use disclosure | `docs/lab-04/ai-use.md` |
+| Screenshots | `artifacts/lab-04/screenshots/` |
 
-The frontend tests cover:
+## Deployment note
 
-- TokTickIT heading
-- Online status and category list
-- Offline/error state when the API is unavailable
-
-## Production cookie and download contract
-
-Authentication uses an HttpOnly `SameSite=Strict` session cookie. Keep the browser
-application and API on the **same site** in production so authenticated API requests
-and attachment-download links continue to carry the session cookie. A reverse proxy is
-recommended, for example serving the API at `https://club.example.edu/api` beside the
-frontend, or using same-site HTTPS subdomains such as `app.example.edu` and
-`api.example.edu`.
-
-Do not deploy the frontend and API on unrelated sites and weaken the cookie to
-`SameSite=None` merely to make download links work. If unrelated sites are unavoidable,
-use a separately designed authenticated blob-download flow or short-lived signed download
-URLs, with their own threat-model review.
+Authentication uses an HttpOnly, `SameSite=Strict` session cookie. Keep the client and API on the same site in production (for example via a reverse proxy) so authenticated requests and attachment downloads carry the cookie. Do not weaken the cookie to `SameSite=None` solely to connect unrelated sites.

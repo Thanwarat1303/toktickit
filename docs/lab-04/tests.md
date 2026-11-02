@@ -13,12 +13,12 @@ it does not turn unrelated planned rows into Pass entries.
 | API-17..20 | status matrix and resolution gate | legal transitions only; gate reasons correct | Pass (F6) |
 | API-21 | concurrent action vs resolve | 20 rounds; no RESOLVED ticket ends with open action | Pass (F6) |
 | API-22a | ticket-write versioning | existing claim, owner assignment and workflow writes reject a missing/stale version and increment the ticket version exactly once on success | Pass (F5) |
-| API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Planned |
-| API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Planned |
+| API-22b | route separation and remaining ticket writes | priority-only `/workflow`, dedicated status route, mark-resolved and their stale/missing/current cases | Pass (F6) |
+| API-23 | revisions | revision 1 plus each edit; atomic failure leaves projection/history unchanged | Pass (F3) |
 | API-24 | authorization matrix | no session, wrong role, forged origin, ownership concealment | Planned |
 | API-25..28 | dashboards | values and drill-down sets equal raw database queries, Bangkok seven-day boundary and zero-filled metrics | Pass (#62/#63) |
 | MIG-01..03 | migration and seed | additive migration, version defaults, revision constraints and idempotent seed | Pass (F2) |
-| UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Planned |
+| UI-01..06 | Actions Taken | list/form/errors/conflict/history/read-only/final states | Pass (Lab 4 client tests) |
 | UI-07..10 | workflow | legal buttons, gate reasons, confirmation, version sent | Planned |
 | UI-11..14 | dashboards | role navigation, cards, drill-down, loading/empty/error/forbidden | Pass (#64) |
 | SEC-01..03 | security | route-role sweep, 401/403/404 ladder, CSRF | Planned |
